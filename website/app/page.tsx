@@ -1,8 +1,8 @@
-import Footer from "@/components/user/common/footer";
+import Hero from "@/components/user/home/hero";
 const Home=()=> {
   return (
   <>
-  <Footer />
+  <Hero />
   </>
   );
 }
