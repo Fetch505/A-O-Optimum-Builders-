@@ -28,7 +28,7 @@ export default function RootLayout({
     
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased scrollbar-hide`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased w-full`}
       >
         <Navbar />
         {children}
