@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@theme {
+  /* Colors */
+  --color-bg_dark: #323232;
+  --color-bg_footer_section1:#E4B327;
+  --color-bg_light: #13AAF1;
+  --color-bg_input: #262626;
+
+}
+
+
+.outerPadding {
+  @apply p-1 md:p-2 lg:p-3;
+}
+
+.cominnerPadding {
+  @apply px-4 md:px-6 py-2 lg:py-3;
+}
+
+.comtext {
+  @apply text-sm md:text-base lg:text-lg;
+}
