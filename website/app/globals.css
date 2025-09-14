@@ -6,9 +6,17 @@
   --color-bg_footer_section1:#E4B327;
   --color-bg_light: #13AAF1;
   --color-bg_input: #262626;
+  --color-faded_gray:#9B9B9B;
 
 }
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
 
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;     /* Firefox */
+}
 
 .outerPadding {
   @apply p-1 md:p-2 lg:p-3;
