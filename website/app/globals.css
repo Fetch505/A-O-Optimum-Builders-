@@ -1,12 +1,61 @@
 @import "tailwindcss";
 
+/* ============================
+   Font Faces
+============================ */
+@font-face {
+  font-family: "Figtree-Regular";
+  src: local("Figtree-Regular"),
+       url("@/assets/font/Figtree/Figtree-Regular.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Figtree-Semibold";
+  src: local("Figtree-Semibold"),
+       url("@/assets/font/Figtree/Figtree-SemiBold.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Figtree-Bold";
+  src: local("Figtree-Bold"),
+       url("@/assets/font/Figtree/Figtree-Bold.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Century";
+  src: local("Century"),
+       url("@/assets/font/Century/19th Century Renegade.otf") format("opentype");
+}
+
+@font-face {
+  font-family: "Montserrat-Regular";
+  src: local("Montserrat-Regular"),
+       url("@/assets/font/Montserrat/Montserrat-Regular.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Montserrat-Bold";
+  src: local("Montserrat-Bold"),
+       url("@/assets/font/Montserrat/Montserrat-Bold.ttf") format("truetype");
+}
+
+/* ============================
+   Tailwind Theme Variables
+============================ */
 @theme {
-  /* Colors */
   --color-bg_dark: #323232;
   --color-bg_light: #13AAF1;
   --color-bg_input: #262626;
-  --color-faded_gray:#9B9B9B;
-  --color-gold:#E4B327;
+  --color-faded_gray: #9B9B9B;
+  --color-gold: #E4B327;
+
+  
+  --font-FigtreeRegular: 'Figtree-Regular', sans-serif;
+  --font-FigtreeSemibold: 'Figtree-Semibold', sans-serif;
+  --font-FigtreeBold: 'Figtree-Bold', sans-serif;
+  --font-Century: 'Century', sans-serif;
+  --font-MontserratRegular: 'Montserrat-Regular', sans-serif;
+  --font-MontserratBold: 'Montserrat-Bold', sans-serif;
 
 }
 .scrollbar-hide::-webkit-scrollbar {
