@@ -18,7 +18,7 @@ const Footer = () => {
     <footer className="w-full outerPadding flex flex-col justify-between">
       <main className="w-full bg-bg_dark rounded-3xl h-full p-4 md:p-8 lg:p-12">
         {/* 1. Newsletter Section */}
-        <section className="relative w-full flex flex-col md:flex-row justify-between items-center rounded-3xl p-4 md:p-8 lg:p-12 gap-6 bg-bg_footer_section1 overflow-hidden">
+        <section className="relative w-full flex flex-col md:flex-row justify-between items-center rounded-3xl p-4 md:p-8 lg:p-12 gap-6 bg-gold overflow-hidden">
           {/* Heading */}
           <h2 className="text-white font-semibold text-center md:text-left w-full md:w-1/2 lg:max-w-sm text-2xl md:text-3xl lg:text-5xl z-10">
             Signup for our newsletter
