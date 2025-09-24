@@ -40,7 +40,7 @@ const Footer = () => {
 
             <button
               onClick={handleEmailChange}
-              className="bg-white text-bg_dark px-4 py-2 rounded-full font-bold flex items-center justify-center flex-shrink-0"
+              className="bg-white hover:bg-white/80 text-bg_dark px-4 py-2 rounded-full font-bold flex items-center justify-center flex-shrink-0"
             >
               <span className="hidden lg:inline whitespace-nowrap comtext">
                 Contact Us

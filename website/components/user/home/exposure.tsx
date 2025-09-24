@@ -48,15 +48,15 @@ const Exposure = () => {
                     {/* Stats Section */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-gray-200">
                         <div className="flex flex-col">
-                            <h3 className="text-3xl  text-gray-900 font-Century"><b>4.9</b></h3>
+                            <h3 className="text-3xl  text-gray-900 font-VLNL"><b>4.9</b></h3>
                             <p className="text-sm text-amber-500 mt-1">Rate Agency</p>
                         </div>
                         <div className="flex flex-col">
-                            <h3 className="text-3xl font-Century text-gray-900"><b>20+</b></h3>
+                            <h3 className="text-3xl font-VLNL text-gray-900"><b>20+</b></h3>
                             <p className="text-sm text-amber-500 mt-1">Total Projects</p>
                         </div>
                         <div className="flex flex-col">
-                            <h3 className="text-3xl font-Century text-gray-900"><b>50+ MILLION</b></h3>
+                            <h3 className="text-3xl font-VLNL text-gray-900"><b>50+ MILLION</b></h3>
                             <p className="text-sm text-amber-500 mt-1">Total Revenue Generated</p>
                         </div>
                     </div>

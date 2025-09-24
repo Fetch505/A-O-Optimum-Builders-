@@ -39,6 +39,12 @@
        url("@/assets/font/Montserrat/Montserrat-Bold.ttf") format("truetype");
 }
 
+@font-face {
+  font-family: "VLNLBreakzW00CondensedBold";
+  src: local("VLNLBreakzW00CondensedBold"),
+       url("@/assets/font/VLNLBreakzW00CondensedBold.ttf") format("truetype");
+}
+
 /* ============================
    Tailwind Theme Variables
 ============================ */
@@ -56,6 +62,7 @@
   --font-Century: 'Century', sans-serif;
   --font-MontserratRegular: 'Montserrat-Regular', sans-serif;
   --font-MontserratBold: 'Montserrat-Bold', sans-serif;
+  --font-VLNL: 'VLNLBreakzW00CondensedBold', sans-serif;
 
 }
 .scrollbar-hide::-webkit-scrollbar {
