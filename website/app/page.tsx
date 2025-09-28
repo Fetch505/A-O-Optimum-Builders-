@@ -1,3 +1,4 @@
+import CardSection from "@/components/user/home/cardSection";
 import Exposure from "@/components/user/home/exposure";
 import Hero from "@/components/user/home/hero";
 const Home=()=> {
@@ -5,6 +6,9 @@ const Home=()=> {
   <>
   <Hero />
   <Exposure />
+  <CardSection service={true} />
+  <CardSection service={false} />
+
   </>
   );
 }
