@@ -63,7 +63,6 @@ const FaqSection: React.FC = () => {
                 </div>
 
                 {/* Right Side (FAQs) */}
-                {/* Right Side (FAQs) */}
                 <div className="flex flex-col gap-4 h-full justify-center">
                     {faqs.map((faq, index) => (
                         <div
