@@ -95,7 +95,7 @@ const ContactFormSection: React.FC = () => {
       <div className="relative w-full h-full rounded-2xl overflow-hidden bg-[#EFEFEF] py-12 px-4 md:px-8">
         <div className="w-full flex items-center justify-center">
           <p className="text-3xl md:text-4xl lg:text-5xl font-FigtreeRegular text-[#101828]">
-            Let's talk
+            Let&apos;s talk
           </p>
         </div>
 
