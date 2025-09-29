@@ -48,7 +48,7 @@ const CategorySection = () => {
   const [openDropdown, setOpenDropdown] = useState(false); // 👈 mobile dropdown state
 
   const handleCategoryClick = (id: string) => {
-    router.push(`/service/${id}?usa=${usa}`);
+    router.push(`/services/${id}?usa=${usa}`);
     setOpenDropdown(false); // mobile dropdown close after click
   };
 

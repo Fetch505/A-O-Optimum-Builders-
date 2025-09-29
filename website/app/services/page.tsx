@@ -3,7 +3,7 @@ import Hero from "@/components/user/common/hero";
 import CategorySection from "@/components/user/services/categoriesSection";
 import MainSection from "@/components/user/services/mainSection";
 
-const about =()=>{
+const service =()=>{
   return (
   <>
  <Hero currentpage="services" />
@@ -14,4 +14,4 @@ const about =()=>{
   </>
 
 )}
-export default about;
+export default service;
