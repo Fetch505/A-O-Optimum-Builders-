@@ -15,24 +15,26 @@ import Concrete from "@/assets/services/icons/Concrete.png";
 
 const categories = [
   { id: "kitchen", name: "Kitchen", icon: Kitchen },
+  { id: "countertops", name: "Countertops", icon: Countertop },
+  
   { id: "partitions", name: "Partitions", icon: Partition },
   { id: "flooring", name: "Flooring", icon: Floor },
   { id: "deckpro", name: "DeckPro", icon: Deskpro },
-  { id: "bath", name: "Bath Transformation", icon: Deskpro },
+  { id: "restroom", name: "Restroom Transformation", icon: Deskpro },
   { id: "fence", name: "Fence", icon: Fence },
   { id: "paints", name: "Paints", icon: Paint },
   { id: "doors", name: "Doors", icon: Door },
   { id: "concrete", name: "Concrete", icon: Concrete },
 
-{ id: "kitchen", name: "Kitchen", icon: Kitchen },
-  { id: "partitions", name: "Partitions", icon: Partition },
-  { id: "flooring", name: "Flooring", icon: Floor },
-  { id: "deckpro", name: "DeckPro", icon: Deskpro },
-  { id: "bath", name: "Bath Transformation", icon: Deskpro },
-  { id: "fence", name: "Fence", icon: Fence },
-  { id: "paints", name: "Paints", icon: Paint },
-  { id: "doors", name: "Doors", icon: Door },
-  { id: "concrete", name: "Concrete", icon: Concrete },
+  { id: "kitchen2", name: "Kitchen", icon: Kitchen },
+  { id: "partitions2", name: "Partitions", icon: Partition },
+  { id: "flooring2", name: "Flooring", icon: Floor },
+  { id: "deckpro2", name: "DeckPro", icon: Deskpro },
+  { id: "restroom2", name: "Restroom Transformation", icon: Deskpro },
+  { id: "fence2", name: "Fence", icon: Fence },
+  { id: "paints2", name: "Paints", icon: Paint },
+  { id: "doors2", name: "Doors", icon: Door },
+  { id: "concrete2", name: "Concrete", icon: Concrete },
 
   
 ];

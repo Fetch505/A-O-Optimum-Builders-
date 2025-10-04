@@ -10,20 +10,14 @@ const MediaSection: React.FC = () => {
     : "";
 
   const imageBase = `/categories/image/${capitalized}`;
-  const videoBase = `/categories/video/${capitalized}`;
 
   const [imageFiles, setImageFiles] = useState<string[]>([]);
-  const [videoFiles, setVideoFiles] = useState<string[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-  // shimmer loading state
   const [loadingImages, setLoadingImages] = useState<string[]>([]);
-
-  // slideshow state
   const [slideIndex, setSlideIndex] = useState(0);
 
-  // zoom/drag states
   const [zoom, setZoom] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
@@ -33,12 +27,23 @@ const MediaSection: React.FC = () => {
   const minZoom = 1;
   const maxZoom = 5;
 
+  // ✅ Static video array (one per service)
+  const videos = [
+    { name: "Kitchen", src: "/categories/video/Kitchen.mp4" },
+    { name: "Concrete", src: "/categories/video/Concrete.mp4" },
+  ];
+
+  // ✅ Find matching video for current service (only one)
+  const matchedVideo = videos.find(
+    (v) => v.name.toLowerCase() === service
+  );
+
   // prevent scroll when modal/lightbox open
   useEffect(() => {
     document.body.style.overflow = showModal || selectedImage ? "hidden" : "";
   }, [showModal, selectedImage]);
 
-  // sequential file loader
+  // sequential image loader
   useEffect(() => {
     const loadSequentialFiles = async (base: string, ext: string) => {
       const files: string[] = [];
@@ -60,10 +65,8 @@ const MediaSection: React.FC = () => {
 
     const loadAll = async () => {
       const images = await loadSequentialFiles(imageBase, "jpg");
-      const videos = await loadSequentialFiles(videoBase, "mp4");
       setImageFiles(images);
-      setVideoFiles(videos);
-      setLoadingImages(images.slice(0, 3)); // mark first 3 loading
+      setLoadingImages(images.slice(0, 3)); // shimmer for first 3
     };
 
     loadAll();
@@ -71,17 +74,17 @@ const MediaSection: React.FC = () => {
 
   const visibleImages = imageFiles.slice(0, 3);
 
-  // slideshow rotation when no videos
+  // slideshow rotation (when no video)
   useEffect(() => {
-    if (videoFiles.length === 0 && visibleImages.length > 1) {
+    if (!matchedVideo && visibleImages.length > 1) {
       const interval = setInterval(() => {
         setSlideIndex((prev) => (prev + 1) % visibleImages.length);
       }, 3000);
       return () => clearInterval(interval);
     }
-  }, [videoFiles, visibleImages]);
+  }, [matchedVideo, visibleImages]);
 
-  // zoom wheel
+  // wheel zoom
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
     if (!containerRef.current) return;
@@ -103,7 +106,7 @@ const MediaSection: React.FC = () => {
     });
   };
 
-  // drag
+  // drag handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     setDragging(true);
@@ -128,24 +131,20 @@ const MediaSection: React.FC = () => {
 
   return (
     <section className="w-full outerPadding flex flex-col justify-between">
-      <main className="w-full bg-[#EFEFEF] rounded-3xl h-full px-4 py-4 md:py-8 lg:py-12 gap-8 flex flex-col">
-        
-        {/* If videos exist → show them */}
-        {videoFiles.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {videoFiles.map((file, idx) => (
-              <video
-                key={idx}
-                controls
-                className="rounded-xl shadow-md w-full aspect-video"
-              >
-                {/* full video path */}
-                <source src={`${videoBase}/${file}`} type="video/mp4" />
-              </video>
-            ))}
-          </div>
+      <main className="w-full bg-[#EFEFEF] rounded-3xl h-full px-12 py-4 md:py-8 lg:py-12 gap-8 flex flex-col">
+
+        {/* ✅ If video exists → show it autoplay */}
+        {matchedVideo ? (
+          <video
+            autoPlay
+            loop
+            playsInline
+            className="rounded-xl shadow-md w-full aspect-video"
+          >
+            <source src={matchedVideo.src} type="video/mp4" />
+          </video>
         ) : (
-          /* If no video → slideshow of first 3 images */
+          /* ✅ If no video → slideshow of first 3 images */
           visibleImages.length > 0 && (
             <div
               className="relative w-full h-100 aspect-video rounded-xl overflow-hidden shadow-md"
@@ -170,7 +169,7 @@ const MediaSection: React.FC = () => {
           )
         )}
 
-        {/* Thumbnails (below slideshow or videos) */}
+        {/* Thumbnails */}
         {visibleImages.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {visibleImages.map((file, idx) => (
@@ -208,7 +207,7 @@ const MediaSection: React.FC = () => {
         )}
       </main>
 
-      {/* Gallery Modal (unchanged) */}
+      {/* Gallery Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-[90%] md:w-[80%] lg:w-[70%] h-[90vh] flex flex-col shadow-xl">
@@ -236,7 +235,7 @@ const MediaSection: React.FC = () => {
         </div>
       )}
 
-      {/* Lightbox (unchanged) */}
+      {/* Lightbox */}
       {selectedImage && (
         <div
           className="fixed inset-0 bg-black/90 flex items-center justify-center z-[60]"

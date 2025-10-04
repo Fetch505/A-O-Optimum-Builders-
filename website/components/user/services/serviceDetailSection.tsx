@@ -36,7 +36,7 @@ const ServiceDetailSection: React.FC = () => {
         "End-to-end construction project management ensuring smooth execution, quality control, budget tracking, and timely delivery.",
     },
     {
-      title: "bath",
+      title: "restroom",
       description:
         "Expert guidance in planning layouts, material selection, and interior design to create spaces that reflect your vision and lifestyle.",
     },
