@@ -15,7 +15,6 @@ import Concrete from "@/assets/services/icons/Concrete.png";
 
 const categories = [
   { id: "kitchen", name: "Kitchen", icon: Kitchen },
-  { id: "countertops", name: "Countertops", icon: Countertop },
   { id: "partitions", name: "Partitions", icon: Partition },
   { id: "flooring", name: "Flooring", icon: Floor },
   { id: "deckpro", name: "DeckPro", icon: Deskpro },
@@ -26,7 +25,6 @@ const categories = [
   { id: "concrete", name: "Concrete", icon: Concrete },
 
 { id: "kitchen", name: "Kitchen", icon: Kitchen },
-  { id: "countertops", name: "Countertops", icon: Countertop },
   { id: "partitions", name: "Partitions", icon: Partition },
   { id: "flooring", name: "Flooring", icon: Floor },
   { id: "deckpro", name: "DeckPro", icon: Deskpro },
@@ -92,20 +90,20 @@ const CategorySection = () => {
           onScroll={checkScroll}
           className="flex gap-6 overflow-x-auto scrollbar-hide scroll-smooth flex-1 px-8 select-none cursor-grab"
         >
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => handleCategoryClick(cat.id)}
-              className="flex flex-col items-center gap-1 text-gray-700 hover:text-amber-500 transition shrink-0"
-            >
-              <div className="w-12 h-12 flex items-center justify-center rounded-lg">
-                <img src={cat.icon.src} alt={cat.name} className="w-6 h-6" />
-              </div>
-              <span className="text-xs md:text-sm text-gray-400">
-                {cat.name}
-              </span>
-            </button>
-          ))}
+         {categories.map((cat) => (
+  <button
+    key={cat.id}
+    onClick={() => handleCategoryClick(cat.id)}
+    className="flex flex-col items-center gap-1 text-gray-700  transition shrink-0 group"
+  >
+    <div className="w-12 h-12 flex items-center justify-center rounded-lg  group-hover:bg-gray-100 transform group-hover:scale-110 transition duration-200">
+      <img src={cat.icon.src} alt={cat.name} className="w-6 h-6 group-hover:scale-110 transition" />
+    </div>
+    <span className="text-xs md:text-sm text-gray-400 group-hover:text-amber-500 transition">
+      {cat.name}
+    </span>
+  </button>
+))}
         </div>
       </div>
 
