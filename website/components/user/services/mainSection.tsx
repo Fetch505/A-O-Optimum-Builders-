@@ -66,7 +66,7 @@ const MainSection: React.FC = () => {
 
 
     return (
-        <footer className="w-full outerPadding flex flex-col justify-between">
+        <section className="w-full outerPadding flex flex-col justify-between">
             <main
                 className="w-full bg-[#EFEFEF] rounded-3xl h-full px-4 py-4 md:py-8 lg:py-12 gap-8 flex flex-col"
             >
@@ -114,7 +114,7 @@ const MainSection: React.FC = () => {
                     ))}
                 </div>
             </main>
-        </footer>
+        </section>
     );
 };
 
