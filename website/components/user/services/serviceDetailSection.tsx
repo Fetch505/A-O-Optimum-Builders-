@@ -69,7 +69,7 @@ const ServiceDetailSection: React.FC = () => {
 
   return (
     <section className="w-full outerPadding flex flex-col justify-between">
-      <main className="w-full bg-[#EFEFEF] rounded-3xl h-full px-4 py-4 md:py-8 lg:py-12 gap-8 flex flex-col">
+      <main className="w-full bg-[#EFEFEF] rounded-3xl h-full px-4 md:px-8 lg:px-12 py-4 md:py-8 lg:py-12 gap-8 flex flex-col">
         <div className="w-full flex md:items-start md:justify-start items-center justify-center font-FigtreeRegular">
           <div className="flex items-center gap-2 rounded-full px-3 py-1 border-2 border-[#C9C8C8] text-gray-800 w-fit">
             <span className="w-2 h-2 bg-amber-400 rounded-full"></span>
