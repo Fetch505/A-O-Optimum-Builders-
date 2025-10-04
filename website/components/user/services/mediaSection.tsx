@@ -1,87 +1,121 @@
-  "use client";
-  import React, { useEffect, useState, useRef } from "react";
-  import { usePathname } from "next/navigation";
+"use client";
+import React, {
+  useEffect,
+  useState,
+  useRef,
+  useMemo,
+  useCallback,
+  useTransition,
+} from "react";
+import { usePathname } from "next/navigation";
 
-  const MediaSection: React.FC = () => {
-    const pathname = usePathname();
-    const service = pathname.split("/").pop()?.toLowerCase();
-    const capitalized = service
-      ? service.charAt(0).toUpperCase() + service.slice(1)
-      : "";
+const MediaSection: React.FC = () => {
+  const pathname = usePathname();
+  const service = pathname.split("/").pop()?.toLowerCase();
+  const capitalized = service
+    ? service.charAt(0).toUpperCase() + service.slice(1)
+    : "";
 
-    const imageBase = `/categories/image/${capitalized}`;
+  const imageBase = `/categories/image/${capitalized}`;
 
-    const [imageFiles, setImageFiles] = useState<string[]>([]);
-    const [showModal, setShowModal] = useState(false);
-    const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [imageFiles, setImageFiles] = useState<string[]>([]);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-    const [loadingImages, setLoadingImages] = useState<string[]>([]);
-    const [slideIndex, setSlideIndex] = useState(0);
+  // UI / small states
+  const [slideIndex, setSlideIndex] = useState(0);
 
-    const [zoom, setZoom] = useState(1);
-    const [position, setPosition] = useState({ x: 0, y: 0 });
-    const [dragging, setDragging] = useState(false);
-    const dragStart = useRef({ x: 0, y: 0 });
-    const containerRef = useRef<HTMLDivElement>(null);
+  // zoom/drag
+  const [zoom, setZoom] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const dragStart = useRef({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
-    const minZoom = 1;
-    const maxZoom = 5;
+  // React transition for non-blocking state updates
+  const [isPending, startTransition] = useTransition();
 
-    // ✅ Static video array
-    const videos = [
+  // config
+  const minZoom = 1;
+  const maxZoom = 5;
+  const MAX_IMAGES_SAFE = 200; // safety cap (adjust if needed)
+
+  // Static video list (one per service)
+  const videos = useMemo(
+    () => [
       { name: "Kitchen", src: "/categories/video/Kitchen.mp4" },
       { name: "Concrete", src: "/categories/video/Concrete.mp4" },
-    ];
-    const matchedVideo = videos.find((v) => v.name.toLowerCase() === service);
+    ],
+    []
+  );
 
-    // prevent scroll when modal/lightbox open
-    useEffect(() => {
-      document.body.style.overflow = showModal || selectedImage ? "hidden" : "";
-    }, [showModal, selectedImage]);
+  // matched video (memoized)
+  const matchedVideo = useMemo(
+    () => videos.find((v) => v.name.toLowerCase() === service),
+    [videos, service]
+  );
 
-    // sequential image loader
-    useEffect(() => {
-      const loadSequentialFiles = async (base: string, ext: string) => {
-        const files: string[] = [];
-        let counter = 1;
-        while (true) {
-          const fileName = `${counter}.${ext}`;
-          const fileUrl = `${base}/${fileName}`;
-          try {
-            const res = await fetch(fileUrl, { method: "HEAD" });
-            if (!res.ok) break;
-            files.push(fileName);
-            counter++;
-          } catch {
-            break;
-          }
+  // Prevent body scroll when modal/lightbox open
+  useEffect(() => {
+    document.body.style.overflow = showModal || selectedImage ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showModal, selectedImage]);
+
+  // Sequential preload using Image() — SINGLE pass (no HEAD requests)
+  useEffect(() => {
+    let mounted = true;
+    setImageFiles([]); // reset when service changes
+    const loadSequentialImages = async () => {
+      const loaded: string[] = [];
+      for (let counter = 1; counter <= MAX_IMAGES_SAFE && mounted; counter++) {
+        const fileName = `${counter}.jpg`;
+        const url = `${imageBase}/${fileName}`;
+        try {
+          // load the image via Image() — browser will fetch it once
+          await new Promise<void>((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve();
+            img.onerror = () => reject();
+            img.src = url;
+          });
+          if (!mounted) break;
+          // update state non-blockingly
+          startTransition(() => {
+            setImageFiles((prev) => [...prev, fileName]);
+          });
+        } catch {
+          // stop on first missing file (sequential)
+          break;
         }
-        return files;
-      };
-
-      const loadAll = async () => {
-        const images = await loadSequentialFiles(imageBase, "jpg");
-        setImageFiles(images);
-        setLoadingImages(images.slice(0, 3)); // shimmer for first 3
-      };
-
-      loadAll();
-    }, [service]);
-
-    const visibleImages = imageFiles.slice(0, 3);
-
-    // slideshow rotation
-    useEffect(() => {
-      if (!matchedVideo && visibleImages.length > 1) {
-        const interval = setInterval(() => {
-          setSlideIndex((prev) => (prev + 1) % visibleImages.length);
-        }, 3000);
-        return () => clearInterval(interval);
       }
-    }, [matchedVideo, visibleImages]);
+      // done
+    };
 
-    // wheel zoom
-    const handleWheel = (e: React.WheelEvent) => {
+    loadSequentialImages();
+
+    return () => {
+      mounted = false;
+    };
+  }, [imageBase]);
+
+  // derived visible images (first 3)
+  const visibleImages = imageFiles.slice(0, 3);
+
+  // slideshow (only when no matched video)
+  useEffect(() => {
+    if (!matchedVideo && visibleImages.length > 1) {
+      const id = setInterval(() => {
+        setSlideIndex((s) => (s + 1) % visibleImages.length);
+      }, 3000);
+      return () => clearInterval(id);
+    }
+  }, [matchedVideo, visibleImages]);
+
+  // wheel zoom (useCallback for stability)
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
       e.preventDefault();
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
@@ -100,18 +134,25 @@
 
         return nextZoom;
       });
-    };
+    },
+    [containerRef]
+  );
 
-    // drag handlers
-    const handleMouseDown = (e: React.MouseEvent) => {
+  // drag handlers (stable callbacks)
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
       e.preventDefault();
       setDragging(true);
       dragStart.current = { x: e.clientX - position.x, y: e.clientY - position.y };
-    };
-    const handleMouseMove = (e: React.MouseEvent) => {
+    },
+    [position]
+  );
+
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
       if (!dragging || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
-      const img = containerRef.current.querySelector("img") as HTMLImageElement;
+      const img = containerRef.current.querySelector("img") as HTMLImageElement | null;
       if (!img) return;
 
       let newX = e.clientX - dragStart.current.x;
@@ -122,114 +163,113 @@
       newX = Math.max(-maxOffsetX, Math.min(newX, maxOffsetX));
       newY = Math.max(-maxOffsetY, Math.min(newY, maxOffsetY));
       setPosition({ x: newX, y: newY });
+    },
+    [dragging, zoom]
+  );
+
+  const handleMouseUp = useCallback(() => setDragging(false), []);
+
+  // double click reset
+  const handleDoubleClick = useCallback(() => {
+    setZoom(1);
+    setPosition({ x: 0, y: 0 });
+  }, []);
+
+  // escape closes modal/lightbox
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowModal(false);
+        setSelectedImage(null);
+        setZoom(1);
+        setPosition({ x: 0, y: 0 });
+      }
     };
-    const handleMouseUp = () => setDragging(false);
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
 
-    // double click reset zoom
-    const handleDoubleClick = () => {
-      setZoom(1);
-      setPosition({ x: 0, y: 0 });
-    };
-
-    // escape key closes
-    useEffect(() => {
-      const closeOnEscape = (e: KeyboardEvent) => {
-        if (e.key === "Escape") {
-          setShowModal(false);
-          setSelectedImage(null);
-          setZoom(1);
-          setPosition({ x: 0, y: 0 });
-        }
-      };
-      document.addEventListener("keydown", closeOnEscape);
-      return () => document.removeEventListener("keydown", closeOnEscape);
-    }, []);
-
-    return (
-      <section className="w-full outerPadding flex flex-col justify-between">
-        <main className="w-full bg-[#EFEFEF] rounded-3xl h-full px-4 md:px-8 lg:px-12 py-4 md:py-8 lg:py-12 gap-8 flex flex-col">
-
-          {/* ✅ Video autoplay or slideshow */}
-          {matchedVideo ? (
-            <video
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="rounded-xl shadow-md w-full aspect-video"
+  return (
+    <section className="w-full outerPadding flex flex-col justify-between">
+      <main className="w-full bg-[#EFEFEF] rounded-3xl h-full px-4 md:px-8 lg:px-12 py-4 md:py-8 lg:py-12 gap-8 flex flex-col">
+        {/* Video or slideshow */}
+        {matchedVideo ? (
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="rounded-xl shadow-md w-full aspect-video"
+          >
+            <source src={matchedVideo.src} type="video/mp4" />
+          </video>
+        ) : (
+          visibleImages.length > 0 && (
+            <button
+              className="relative w-full h-100 aspect-video rounded-xl overflow-hidden shadow-md"
+              onClick={() =>
+                setSelectedImage(`${imageBase}/${visibleImages[slideIndex]}`)
+              }
             >
-              <source src={matchedVideo.src} type="video/mp4" />
-            </video>
-          ) : (
-            visibleImages.length > 0 && (
+              <img
+                src={`${imageBase}/${visibleImages[slideIndex]}`}
+                alt={`${capitalized} preview ${slideIndex}`}
+                className="w-full h-full object-cover transition-opacity duration-700"
+                loading="eager"
+              />
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-2">
+                {visibleImages.map((_, i) => (
+                  <button
+                    key={i}
+                    className={`w-2 h-2 rounded-full transition ${
+                      i === slideIndex ? "bg-white" : "bg-gray-500"
+                    }`}
+                    aria-label={`Go to slide ${i + 1}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSlideIndex(i);
+                    }}
+                  />
+                ))}
+              </div>
+            </button>
+          )
+        )}
+
+        {/* Thumbnails (first 3 loaded images) */}
+        {visibleImages.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {visibleImages.map((file, idx) => (
               <button
-                className="relative w-full h-100 aspect-video rounded-xl overflow-hidden shadow-md"
-                onClick={() => setSelectedImage(`${imageBase}/${visibleImages[slideIndex]}`)}
+                key={idx}
+                className="w-full aspect-[4/3] rounded-xl overflow-hidden shadow-md relative group"
+                onClick={() => setSelectedImage(`${imageBase}/${file}`)}
               >
                 <img
-                  src={`${imageBase}/${visibleImages[slideIndex]}`}
-                  alt={`${capitalized} preview ${slideIndex}`}
-                  className="w-full h-full object-cover transition-opacity duration-700"
+                  src={`${imageBase}/${file}`}
+                  alt={`${capitalized} thumbnail ${idx}`}
+                  loading="lazy"
+                  className="w-full h-full object-cover relative z-10 group-hover:scale-105 transition"
                 />
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-2">
-                  {visibleImages.map((_, i) => (
-                    <button
-                      key={i}
-                      className={`w-2 h-2 rounded-full transition ${
-                        i === slideIndex ? "bg-white" : "bg-gray-500"
-                      }`}
-                      aria-label={`Go to slide ${i + 1}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSlideIndex(i);
-                      }}
-                    />
-                  ))}
-                </div>
               </button>
-            )
-          )}
+            ))}
+          </div>
+        )}
 
-          {/* Thumbnails */}
-          {visibleImages.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {visibleImages.map((file, idx) => (
-                <button
-                  key={idx}
-                  className="w-full aspect-[4/3] rounded-xl overflow-hidden shadow-md relative group"
-                  onClick={() => setSelectedImage(`${imageBase}/${file}`)}
-                >
-                  <img
-                    src={`${imageBase}/${file}`}
-                    alt={`${capitalized} thumbnail ${idx}`}
-                    loading="lazy"
-                    className="w-full h-full object-cover relative z-10 group-hover:scale-105 transition"
-                    onLoad={() =>
-                      setLoadingImages((prev) => prev.filter((f) => f !== file))
-                    }
-                  />
-                  {loadingImages.includes(file) && (
-                    <span className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 animate-[shimmer_1.5s_infinite] bg-[length:200%_100%]" />
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
+        {/* Show More */}
+        {imageFiles.length > 3 && (
+          <div className="flex justify-center">
+            <button
+              onClick={() => setShowModal(true)}
+              className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700"
+            >
+              Show More
+            </button>
+          </div>
+        )}
+      </main>
 
-          {/* Show More */}
-          {imageFiles.length > 3 && (
-            <div className="flex justify-center">
-              <button
-                onClick={() => setShowModal(true)}
-                className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700"
-              >
-                Show More
-              </button>
-            </div>
-          )}
-        </main>
-
-        {/* Gallery Modal */}
+      {/* Gallery Modal */}
         {showModal && (
           <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
             <div className="bg-white rounded-2xl p-6 w-[90%] md:w-[80%] lg:w-[70%] h-[90vh] flex flex-col shadow-xl">
@@ -263,51 +303,54 @@
           </div>
         )}
 
-        {/* Lightbox */}
-        {selectedImage && (
-          <div
-            className="fixed inset-0 bg-black/90 flex items-center justify-center z-[60]"
-            onWheel={handleWheel}
-            onMouseMove={handleMouseMove}
-            onMouseDown={handleMouseDown}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onDoubleClick={handleDoubleClick}
-            onClick={() => setSelectedImage(null)}
+      {/* Lightbox */}
+      {selectedImage && (
+        <div
+          className="fixed inset-0 bg-black/90 flex items-center justify-center z-[60]"
+          onWheel={handleWheel}
+          onMouseMove={handleMouseMove}
+          onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onDoubleClick={handleDoubleClick}
+          onClick={() => setSelectedImage(null)}
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedImage(null);
+              setZoom(1);
+              setPosition({ x: 0, y: 0 });
+            }}
+            className="absolute top-6 right-6 text-white text-2xl"
+            aria-label="Close lightbox"
           >
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedImage(null);
-                setZoom(1);
-                setPosition({ x: 0, y: 0 });
-              }}
-              className="absolute top-6 right-6 text-white text-2xl"
-              aria-label="Close lightbox"
-            >
-              ✕
-            </button>
-            <div
-              ref={containerRef}
-              className="max-w-[90%] max-h-[80%] overflow-hidden rounded-3xl flex items-center justify-center relative"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <img
-                src={selectedImage}
-                alt="Selected preview"
-                className="object-contain select-none"
-                draggable={false}
-                style={{
-                  transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,
-                  cursor: dragging ? "grabbing" : "grab",
-                  transition: dragging ? "none" : "transform 0.2s ease-out",
-                }}
-              />
-            </div>
-          </div>
-        )}
-      </section>
-    );
-  };
+            ✕
+          </button>
 
-  export default MediaSection;
+          <div
+            ref={containerRef}
+            className="max-w-[90%] max-h-[80%] overflow-auto rounded-3xl flex items-center justify-center relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={selectedImage}
+              alt="Selected preview"
+              className="select-none"
+              draggable={false}
+              style={{
+                transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,
+                cursor: dragging ? "grabbing" : "grab",
+                transition: dragging ? "none" : "transform 0.2s ease-out",
+                maxWidth: "none", // allow native size
+                maxHeight: "none",
+              }}
+            />
+          </div>
+        </div>
+      )}
+    </section>
+  );
+};
+
+export default MediaSection;
