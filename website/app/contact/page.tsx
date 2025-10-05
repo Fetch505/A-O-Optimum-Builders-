@@ -6,7 +6,7 @@ const contact =()=>{
   return (
   <>
   <Hero currentpage="contactus" />
-  <Map/>
+  {/* <Map/> */}
   <ContactFormSection/>
 
   </>
