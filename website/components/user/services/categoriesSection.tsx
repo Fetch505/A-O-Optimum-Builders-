@@ -1,7 +1,7 @@
 "use client";
 import React, { useRef, useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { ChevronRight, ChevronDown, ChevronUp,ChevronLeft } from "lucide-react";
+import { useRouter, usePathname } from "next/navigation";
+import { ChevronRight, ChevronDown, ChevronUp, ChevronLeft } from "lucide-react";
 
 import Kitchen from "@/assets/services/icons/Kitchen.png";
 import Countertop from "@/assets/services/icons/Countertop.png";
@@ -16,7 +16,6 @@ import Concrete from "@/assets/services/icons/Concrete.png";
 const categories = [
   { id: "kitchen", name: "Kitchen", icon: Kitchen },
   { id: "countertops", name: "Countertops", icon: Countertop },
-  
   { id: "partitions", name: "Partitions", icon: Partition },
   { id: "flooring", name: "Flooring", icon: Floor },
   { id: "deckpro", name: "DeckPro", icon: Deskpro },
@@ -25,7 +24,6 @@ const categories = [
   { id: "paints", name: "Paints", icon: Paint },
   { id: "doors", name: "Doors", icon: Door },
   { id: "concrete", name: "Concrete", icon: Concrete },
-
   { id: "kitchen2", name: "Kitchen", icon: Kitchen },
   { id: "partitions2", name: "Partitions", icon: Partition },
   { id: "flooring2", name: "Flooring", icon: Floor },
@@ -35,30 +33,33 @@ const categories = [
   { id: "paints2", name: "Paints", icon: Paint },
   { id: "doors2", name: "Doors", icon: Door },
   { id: "concrete2", name: "Concrete", icon: Concrete },
-
-  
 ];
 
 const CategorySection = () => {
   const router = useRouter();
+  const pathname = usePathname(); // ✅ get current path from URL
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [usa, setUsa] = useState(false);
+
+  const [usa, setUsa] = useState(true);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState(false); // 👈 mobile dropdown state
+  const [openDropdown, setOpenDropdown] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  // ✅ Extract current category from URL
+  useEffect(() => {
+    const lastSegment = pathname.split("/").pop();
+    if (lastSegment) setSelectedCategory(lastSegment);
+  }, [pathname]);
 
   const handleCategoryClick = (id: string) => {
+    setSelectedCategory(id);
     router.push(`/services/${id}?usa=${usa}`);
-    setOpenDropdown(false); // mobile dropdown close after click
+    setOpenDropdown(false);
   };
 
-  const scrollRight = () => {
-    scrollRef.current?.scrollBy({ left: 200, behavior: "smooth" });
-  };
-
-  const scrollLeft = () => {
-    scrollRef.current?.scrollBy({ left: -200, behavior: "smooth" });
-  };
+  const scrollRight = () => scrollRef.current?.scrollBy({ left: 200, behavior: "smooth" });
+  const scrollLeft = () => scrollRef.current?.scrollBy({ left: -200, behavior: "smooth" });
 
   const checkScroll = () => {
     if (scrollRef.current) {
@@ -76,68 +77,112 @@ const CategorySection = () => {
 
   return (
     <div className="w-full flex flex-col-reverse md:flex-row md:items-center md:justify-between gap-4 px-6">
-      {/* Categories (desktop only) */}
+      {/* Left Scroll Button */}
       {showLeftArrow && (
-            <button
-              onClick={scrollLeft}
-              className="p-2 border rounded-full border-gray-300 bg-white shadow hover:bg-gray-100 hidden md:block"
-            >
-              <ChevronLeft size={20} />
-            </button>
-          )}
+        <button
+          onClick={scrollLeft}
+          className="p-2 border rounded-full border-gray-300 bg-white shadow hover:bg-gray-100 hidden md:block"
+        >
+          <ChevronLeft size={20} />
+        </button>
+      )}
 
+      {/* Desktop Categories */}
       <div className="relative hidden md:flex items-center flex-1 md:w-7/12 lg:w-9/12">
         <div
           ref={scrollRef}
           onScroll={checkScroll}
           className="flex gap-6 overflow-x-auto scrollbar-hide scroll-smooth flex-1 px-8 select-none cursor-grab"
         >
-         {categories.map((cat) => (
-  <button
-    key={cat.id}
-    onClick={() => handleCategoryClick(cat.id)}
-    className="flex flex-col items-center gap-1 text-gray-700  transition shrink-0 group"
-  >
-    <div className="w-12 h-12 flex items-center justify-center rounded-lg  group-hover:bg-gray-100 transform group-hover:scale-110 transition duration-200">
-      <img src={cat.icon.src} alt={cat.name} className="w-6 h-6 group-hover:scale-110 transition" />
-    </div>
-    <span className="text-xs md:text-sm text-gray-400 group-hover:text-amber-500 transition">
-      {cat.name}
-    </span>
-  </button>
-))}
+          {categories.map((cat) => {
+            const isActive = selectedCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => handleCategoryClick(cat.id)}
+                className={`flex flex-col items-center gap-1 transition shrink-0 group ${
+                  isActive ? "text-amber-500" : "text-gray-700"
+                }`}
+              >
+                <div
+                  className={`w-12 h-12 flex items-center justify-center rounded-lg transition duration-200 ${
+                    isActive
+                      ? "bg-amber-100 scale-110"
+                      : "group-hover:bg-gray-100 group-hover:scale-110"
+                  }`}
+                >
+                  <img
+                    src={cat.icon.src}
+                    alt={cat.name}
+                    className={`w-6 h-6 transition ${
+                      isActive ? "scale-110" : "group-hover:scale-110"
+                    }`}
+                  />
+                </div>
+                <span
+                  className={`text-xs md:text-sm transition ${
+                    isActive
+                      ? "text-amber-500 font-semibold"
+                      : "text-gray-400 group-hover:text-amber-500"
+                  }`}
+                >
+                  {cat.name}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Mobile Categories Dropdown */}
+      {/* Mobile Dropdown */}
       <div className="block md:hidden w-full">
         <button
           onClick={() => setOpenDropdown(!openDropdown)}
           className="w-full flex items-center justify-between px-4 py-2 border rounded-lg bg-white shadow text-gray-700"
         >
-          <span>Browse Categories</span>
+          <span>
+            {selectedCategory
+              ? categories.find((c) => c.id === selectedCategory)?.name || "Browse Categories"
+              : "Browse Categories"}
+          </span>
           {openDropdown ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
+
         {openDropdown && (
           <div className="mt-2 border rounded-lg bg-white shadow p-2 grid grid-cols-2 gap-4 max-h-64 overflow-y-auto">
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => handleCategoryClick(cat.id)}
-                className="flex flex-col items-center gap-1 text-gray-700 hover:text-amber-500 transition"
-              >
-                <div className="w-10 h-10 flex items-center justify-center rounded-lg">
-                  <img src={cat.icon.src} alt={cat.name} className="w-6 h-6" />
-                </div>
-                <span className="text-xs text-gray-500">{cat.name}</span>
-              </button>
-            ))}
+            {categories.map((cat) => {
+              const isActive = selectedCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => handleCategoryClick(cat.id)}
+                  className={`flex flex-col items-center gap-1 transition ${
+                    isActive ? "text-amber-500 font-semibold" : "text-gray-700 hover:text-amber-500"
+                  }`}
+                >
+                  <div
+                    className={`w-10 h-10 flex items-center justify-center rounded-lg ${
+                      isActive ? "bg-amber-100" : ""
+                    }`}
+                  >
+                    <img src={cat.icon.src} alt={cat.name} className="w-6 h-6" />
+                  </div>
+                  <span
+                    className={`text-xs ${
+                      isActive ? "text-amber-500" : "text-gray-500"
+                    }`}
+                  >
+                    {cat.name}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* Right side controls */}
-      <div className="flex items-center justify-center md:justify-end  ">
+      {/* Right Controls */}
+      <div className="flex items-center justify-center md:justify-end">
         <div className="flex items-center gap-2">
           {showRightArrow && (
             <button

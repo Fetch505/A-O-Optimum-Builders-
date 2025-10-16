@@ -1,13 +1,13 @@
 "use client";
-import React, {
-  useEffect,
-  useState,
-  useRef,
-  useMemo,
-  useCallback,
-  useTransition,
-} from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { usePathname } from "next/navigation";
+import { X, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+
+interface FolderData {
+  id: string;
+  images: string[];
+  thumbnail: string;
+}
 
 const MediaSection: React.FC = () => {
   const pathname = usePathname();
@@ -17,30 +17,21 @@ const MediaSection: React.FC = () => {
     : "";
 
   const imageBase = `/categories/image/${capitalized}`;
+  
+  // State management
+  const [folders, setFolders] = useState<FolderData[]>([]);
+  const [flatImages, setFlatImages] = useState<string[]>([]);
+  const [isNested, setIsNested] = useState<boolean | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Modal state
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  
+  const MAX_FOLDERS = 50;
+  const MAX_IMAGES_PER_FOLDER = 200;
+  const MAX_FLAT_IMAGES = 200;
 
-  const [imageFiles, setImageFiles] = useState<string[]>([]);
-  const [showModal, setShowModal] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-
-  // UI / small states
-  const [slideIndex, setSlideIndex] = useState(0);
-
-  // zoom/drag
-  const [zoom, setZoom] = useState(1);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [dragging, setDragging] = useState(false);
-  const dragStart = useRef({ x: 0, y: 0 });
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
-  // React transition for non-blocking state updates
-  const [isPending, startTransition] = useTransition();
-
-  // config
-  const minZoom = 1;
-  const maxZoom = 5;
-  const MAX_IMAGES_SAFE = 200; // safety cap (adjust if needed)
-
-  // Static video list (one per service)
   const videos = useMemo(
     () => [
       { name: "Kitchen", src: "/categories/video/Kitchen.mp4" },
@@ -49,303 +40,354 @@ const MediaSection: React.FC = () => {
     []
   );
 
-  // matched video (memoized)
   const matchedVideo = useMemo(
     () => videos.find((v) => v.name.toLowerCase() === service),
     [videos, service]
   );
 
-  // Prevent body scroll when modal/lightbox open
-  useEffect(() => {
-    document.body.style.overflow = showModal || selectedImage ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [showModal, selectedImage]);
+  // Check if structure is nested or flat
+  const detectStructure = useCallback(async () => {
+    setIsLoading(true);
+    
+    // First, try to detect nested structure (folder/image pattern)
+    let foundNested = false;
+    const detectedFolders: FolderData[] = [];
 
-  // Sequential preload using Image() — SINGLE pass (no HEAD requests)
-  useEffect(() => {
-    let mounted = true;
-    setImageFiles([]); // reset when service changes
-    const loadSequentialImages = async () => {
-      const loaded: string[] = [];
-      for (let counter = 1; counter <= MAX_IMAGES_SAFE && mounted; counter++) {
-        const fileName = `${counter}.jpg`;
-        const url = `${imageBase}/${fileName}`;
-        try {
-          // load the image via Image() — browser will fetch it once
-          await new Promise<void>((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => resolve();
-            img.onerror = () => reject();
-            img.src = url;
+    for (let folderId = 1; folderId <= MAX_FOLDERS; folderId++) {
+      const testUrl = `${imageBase}/${folderId}/1.jpg`;
+      
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve();
+          img.onerror = () => reject();
+          img.src = testUrl;
+        });
+        
+        foundNested = true;
+        
+        // Load all images in this folder
+        const folderImages: string[] = [];
+        for (let imgId = 1; imgId <= MAX_IMAGES_PER_FOLDER; imgId++) {
+          const imgUrl = `${imageBase}/${folderId}/${imgId}.jpg`;
+          try {
+            await new Promise<void>((resolve, reject) => {
+              const img = new Image();
+              img.onload = () => resolve();
+              img.onerror = () => reject();
+              img.src = imgUrl;
+            });
+            folderImages.push(`${imgId}.jpg`);
+          } catch {
+            break;
+          }
+        }
+        
+        if (folderImages.length > 0) {
+          detectedFolders.push({
+            id: String(folderId),
+            images: folderImages,
+            thumbnail: `${folderId}/1.jpg`
           });
-          if (!mounted) break;
-          // update state non-blockingly
-          startTransition(() => {
-            setImageFiles((prev) => [...prev, fileName]);
-          });
-        } catch {
-          // stop on first missing file (sequential)
+        }
+      } catch {
+        if (folderId === 1) {
+          // If folder 1 doesn't exist, it's likely a flat structure
+          break;
+        }
+        // If we found folders before but this one doesn't exist, we're done
+        if (foundNested) {
           break;
         }
       }
-      // done
-    };
+    }
 
-    loadSequentialImages();
+    if (foundNested && detectedFolders.length > 0) {
+      setIsNested(true);
+      setFolders(detectedFolders);
+      setIsLoading(false);
+      return;
+    }
 
-    return () => {
-      mounted = false;
-    };
+    // Fallback to flat structure
+    const flatImgs: string[] = [];
+    for (let i = 1; i <= MAX_FLAT_IMAGES; i++) {
+      const url = `${imageBase}/${i}.jpg`;
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve();
+          img.onerror = () => reject();
+          img.src = url;
+        });
+        flatImgs.push(`${i}.jpg`);
+      } catch {
+        break;
+      }
+    }
+
+    setIsNested(false);
+    setFlatImages(flatImgs);
+    setIsLoading(false);
   }, [imageBase]);
 
-  // derived visible images (first 3)
-  const visibleImages = imageFiles.slice(0, 3);
-
-  // slideshow (only when no matched video)
   useEffect(() => {
-    if (!matchedVideo && visibleImages.length > 1) {
-      const id = setInterval(() => {
-        setSlideIndex((s) => (s + 1) % visibleImages.length);
-      }, 3000);
-      return () => clearInterval(id);
+    detectStructure();
+  }, [detectStructure]);
+
+  // Modal controls
+  const openModal = (folderId: string, startIndex: number = 0) => {
+    setSelectedFolder(folderId);
+    setCurrentImageIndex(startIndex);
+    document.body.style.overflow = "hidden";
+  };
+
+  const closeModal = () => {
+    setSelectedFolder(null);
+    setCurrentImageIndex(0);
+    document.body.style.overflow = "";
+  };
+
+  const handleNext = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!selectedFolder) return;
+    
+    const folder = folders.find(f => f.id === selectedFolder);
+    if (folder) {
+      setCurrentImageIndex((prev) => (prev + 1) % folder.images.length);
     }
-  }, [matchedVideo, visibleImages]);
+  }, [selectedFolder, folders]);
 
-  // wheel zoom (useCallback for stability)
-  const handleWheel = useCallback(
-    (e: React.WheelEvent) => {
-      e.preventDefault();
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const offsetX = e.clientX - rect.left;
-      const offsetY = e.clientY - rect.top;
+  const handlePrev = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!selectedFolder) return;
+    
+    const folder = folders.find(f => f.id === selectedFolder);
+    if (folder) {
+      setCurrentImageIndex((prev) => 
+        (prev - 1 + folder.images.length) % folder.images.length
+      );
+    }
+  }, [selectedFolder, folders]);
 
-      setZoom((prev) => {
-        const nextZoom =
-          e.deltaY < 0 ? Math.min(prev + 0.2, maxZoom) : Math.max(prev - 0.2, minZoom);
-        const zoomFactor = nextZoom / prev;
-
-        setPosition((pos) => ({
-          x: (pos.x - offsetX) * zoomFactor + offsetX,
-          y: (pos.y - offsetY) * zoomFactor + offsetY,
-        }));
-
-        return nextZoom;
-      });
-    },
-    [containerRef]
-  );
-
-  // drag handlers (stable callbacks)
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      setDragging(true);
-      dragStart.current = { x: e.clientX - position.x, y: e.clientY - position.y };
-    },
-    [position]
-  );
-
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (!dragging || !containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const img = containerRef.current.querySelector("img") as HTMLImageElement | null;
-      if (!img) return;
-
-      let newX = e.clientX - dragStart.current.x;
-      let newY = e.clientY - dragStart.current.y;
-      const maxOffsetX = Math.max(0, (img.width * zoom - rect.width) / 2);
-      const maxOffsetY = Math.max(0, (img.height * zoom - rect.height) / 2);
-
-      newX = Math.max(-maxOffsetX, Math.min(newX, maxOffsetX));
-      newY = Math.max(-maxOffsetY, Math.min(newY, maxOffsetY));
-      setPosition({ x: newX, y: newY });
-    },
-    [dragging, zoom]
-  );
-
-  const handleMouseUp = useCallback(() => setDragging(false), []);
-
-  // double click reset
-  const handleDoubleClick = useCallback(() => {
-    setZoom(1);
-    setPosition({ x: 0, y: 0 });
-  }, []);
-
-  // escape closes modal/lightbox
+  // Keyboard navigation
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setShowModal(false);
-        setSelectedImage(null);
-        setZoom(1);
-        setPosition({ x: 0, y: 0 });
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (!selectedFolder) return;
+      
+      if (e.key === "ArrowRight") {
+        const folder = folders.find(f => f.id === selectedFolder);
+        if (folder) {
+          setCurrentImageIndex((prev) => (prev + 1) % folder.images.length);
+        }
+      } else if (e.key === "ArrowLeft") {
+        const folder = folders.find(f => f.id === selectedFolder);
+        if (folder) {
+          setCurrentImageIndex((prev) => 
+            (prev - 1 + folder.images.length) % folder.images.length
+          );
+        }
+      } else if (e.key === "Escape") {
+        closeModal();
       }
     };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, []);
+
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
+  }, [selectedFolder, folders]);
+
+  // Get current modal image
+  const currentModalImage = useMemo(() => {
+    if (!selectedFolder) return null;
+    const folder = folders.find(f => f.id === selectedFolder);
+    if (!folder) return null;
+    return `${imageBase}/${selectedFolder}/${folder.images[currentImageIndex]}`;
+  }, [selectedFolder, currentImageIndex, folders, imageBase]);
+
+  const currentFolder = useMemo(() => 
+    folders.find(f => f.id === selectedFolder),
+    [folders, selectedFolder]
+  );
+
+  // Render loading state
+  if (isLoading) {
+    return (
+      <section className="w-full outerPadding flex flex-col justify-between">
+        <main className="w-full bg-gradient-to-br from-gray-50 to-gray-100 rounded-3xl h-full px-4 md:px-8 lg:px-12 py-4 md:py-8 lg:py-12 gap-8 flex items-center justify-center min-h-[400px]">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="w-12 h-12 animate-spin text-gray-600" />
+            <p className="text-gray-600 font-medium">Loading media...</p>
+          </div>
+        </main>
+      </section>
+    );
+  }
 
   return (
     <section className="w-full outerPadding flex flex-col justify-between">
-      <main className="w-full bg-[#EFEFEF] rounded-3xl h-full px-4 md:px-8 lg:px-12 py-4 md:py-8 lg:py-12 gap-8 flex flex-col">
-        {/* Video or slideshow */}
+      <main className="w-full bg-gradient-to-br from-gray-50 to-gray-100 rounded-3xl h-full px-4 md:px-8 lg:px-12 py-4 md:py-8 lg:py-12 gap-8 flex flex-col">
+        {/* Video or First Image */}
         {matchedVideo ? (
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
-            className="rounded-xl shadow-md w-full aspect-video"
-          >
-            <source src={matchedVideo.src} type="video/mp4" />
-          </video>
-        ) : (
-          visibleImages.length > 0 && (
-            <button
-              className="relative w-full h-100 aspect-video rounded-xl overflow-hidden shadow-md"
-              onClick={() =>
-                setSelectedImage(`${imageBase}/${visibleImages[slideIndex]}`)
-              }
+          <div className="relative rounded-2xl overflow-hidden shadow-2xl">
+            <video
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-full aspect-video object-cover"
             >
-              <img
-                src={`${imageBase}/${visibleImages[slideIndex]}`}
-                alt={`${capitalized} preview ${slideIndex}`}
-                className="w-full h-full object-cover transition-opacity duration-700"
-                loading="eager"
-              />
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-2">
-                {visibleImages.map((_, i) => (
-                  <button
-                    key={i}
-                    className={`w-2 h-2 rounded-full transition ${
-                      i === slideIndex ? "bg-white" : "bg-gray-500"
-                    }`}
-                    aria-label={`Go to slide ${i + 1}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSlideIndex(i);
-                    }}
-                  />
-                ))}
-              </div>
-            </button>
-          )
-        )}
+              <source src={matchedVideo.src} type="video/mp4" />
+            </video>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+          </div>
+        ) : isNested && folders.length > 0 ? (
+          <div
+            className="relative w-full aspect-video rounded-2xl overflow-hidden shadow-2xl cursor-pointer group"
+            onClick={() => openModal(folders[0].id, 0)}
+          >
+            <img
+              src={`${imageBase}/${folders[0].thumbnail}`}
+              alt={`${capitalized} preview`}
+              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+              loading="eager"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/0 to-black/0 group-hover:from-black/60 transition-all duration-300" />
+            <div className="absolute bottom-6 left-6 text-white">
+              <p className="text-sm font-medium opacity-90 mb-1">Collection {folders[0].id}</p>
+              <p className="text-2xl font-bold">{folders[0].images.length} Photos</p>
+            </div>
+          </div>
+        ) : flatImages.length > 0 ? (
+          <div className="relative w-full aspect-video rounded-2xl overflow-hidden shadow-2xl">
+            <img
+              src={`${imageBase}/${flatImages[0]}`}
+              alt={`${capitalized} preview`}
+              className="w-full h-full object-cover"
+              loading="eager"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
+          </div>
+        ) : null}
 
-        {/* Thumbnails (first 3 loaded images) */}
-        {visibleImages.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {visibleImages.map((file, idx) => (
-              <button
-                key={idx}
-                className="w-full aspect-[4/3] rounded-xl overflow-hidden shadow-md relative group"
-                onClick={() => setSelectedImage(`${imageBase}/${file}`)}
+        {/* Thumbnail Grid - Show first image from each folder (nested) or first 3 images (flat) */}
+        {isNested && folders.length > 1 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {folders.slice(1, 4).map((folder) => (
+              <div
+                key={folder.id}
+                className="group relative w-full aspect-[4/3] rounded-xl overflow-hidden shadow-lg cursor-pointer transform transition-all duration-300 hover:shadow-2xl hover:-translate-y-2"
+                onClick={() => openModal(folder.id, 0)}
               >
                 <img
-                  src={`${imageBase}/${file}`}
-                  alt={`${capitalized} thumbnail ${idx}`}
+                  src={`${imageBase}/${folder.thumbnail}`}
+                  alt={`Collection ${folder.id}`}
                   loading="lazy"
-                  className="w-full h-full object-cover relative z-10 group-hover:scale-105 transition"
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                 />
-              </button>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0 group-hover:from-black/70 transition-all duration-300" />
+                <div className="absolute bottom-4 left-4 text-white">
+                  <p className="text-xs font-medium opacity-90 mb-0.5">Collection {folder.id}</p>
+                  <p className="text-lg font-bold">{folder.images.length} Photos</p>
+                </div>
+                <div className="absolute inset-0 border-2 border-white/0 group-hover:border-white/30 rounded-xl transition-all duration-300" />
+              </div>
             ))}
           </div>
         )}
 
-        {/* Show More */}
-        {imageFiles.length > 3 && (
-          <div className="flex justify-center">
-            <button
-              onClick={() => setShowModal(true)}
-              className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700"
-            >
-              Show More
-            </button>
+        {!isNested && flatImages.length > 1 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {flatImages.slice(1, 4).map((file, idx) => (
+              <div
+                key={idx}
+                className="w-full aspect-[4/3] rounded-xl overflow-hidden shadow-lg transform transition-all duration-300 hover:shadow-2xl hover:-translate-y-2"
+              >
+                <img
+                  src={`${imageBase}/${file}`}
+                  alt={`${capitalized} ${idx + 1}`}
+                  loading="lazy"
+                  className="w-full h-full object-cover hover:scale-110 transition-transform duration-700"
+                />
+              </div>
+            ))}
           </div>
         )}
       </main>
 
-      {/* Gallery Modal */}
-        {showModal && (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-            <div className="bg-white rounded-2xl p-6 w-[90%] md:w-[80%] lg:w-[70%] h-[90vh] flex flex-col shadow-xl">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold">{capitalized} Gallery</h2>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="text-gray-500 hover:text-gray-800 text-2xl"
-                  aria-label="Close gallery"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 overflow-y-auto pr-2">
-                {imageFiles.map((file, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setSelectedImage(`${imageBase}/${file}`)}
-                    className="w-full  rounded-xl shadow-md overflow-hidden"
-                  >
-                    <img
-                      src={`${imageBase}/${file}`}
-                      alt={`${capitalized} full ${idx}`}
-                      loading="lazy"
-                      className="w-full object-cover aspect-[4/3] hover:scale-105 transition"
-                    />
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-      {/* Lightbox */}
-      {selectedImage && (
+      {/* Enhanced Image Modal */}
+      {selectedFolder && currentModalImage && currentFolder && (
         <div
-          className="fixed inset-0 bg-black/90 flex items-center justify-center z-[60]"
-          onWheel={handleWheel}
-          onMouseMove={handleMouseMove}
-          onMouseDown={handleMouseDown}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-          onDoubleClick={handleDoubleClick}
-          onClick={() => setSelectedImage(null)}
+          className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center z-50 animate-fadeIn"
+          onClick={closeModal}
         >
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedImage(null);
-              setZoom(1);
-              setPosition({ x: 0, y: 0 });
-            }}
-            className="absolute top-6 right-6 text-white text-2xl"
-            aria-label="Close lightbox"
-          >
-            ✕
-          </button>
-
           <div
-            ref={containerRef}
-            className="max-w-[90%] max-h-[80%] overflow-auto rounded-3xl flex items-center justify-center relative"
+            className="relative max-w-7xl w-full h-full flex items-center justify-center p-4 md:p-8"
             onClick={(e) => e.stopPropagation()}
           >
-            <img
-              src={selectedImage}
-              alt="Selected preview"
-              className="select-none"
-              draggable={false}
-              style={{
-                transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,
-                cursor: dragging ? "grabbing" : "grab",
-                transition: dragging ? "none" : "transform 0.2s ease-out",
-                maxWidth: "none", // allow native size
-                maxHeight: "none",
-              }}
-            />
+            {/* Header */}
+            <div className="absolute top-4 md:top-8 left-4 md:left-8 right-4 md:right-8 flex items-center justify-between z-10">
+              <div className="text-white">
+                <p className="text-sm md:text-base font-medium opacity-75">Collection {selectedFolder}</p>
+                <p className="text-lg md:text-xl font-bold">
+                  {currentImageIndex + 1} / {currentFolder.images.length}
+                </p>
+              </div>
+              <button
+                className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all duration-200 hover:rotate-90"
+                onClick={closeModal}
+                aria-label="Close"
+              >
+                <X className="w-6 h-6 md:w-8 md:h-8" />
+              </button>
+            </div>
+
+            {/* Navigation Arrows */}
+            {currentFolder.images.length > 1 && (
+              <>
+                <button
+                  className="absolute left-2 md:left-8 top-1/2 -translate-y-1/2 p-3 md:p-4 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all duration-200 hover:scale-110 z-10"
+                  onClick={handlePrev}
+                  aria-label="Previous"
+                >
+                  <ChevronLeft className="w-6 h-6 md:w-8 md:h-8" />
+                </button>
+                <button
+                  className="absolute right-2 md:right-8 top-1/2 -translate-y-1/2 p-3 md:p-4 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all duration-200 hover:scale-110 z-10"
+                  onClick={handleNext}
+                  aria-label="Next"
+                >
+                  <ChevronRight className="w-6 h-6 md:w-8 md:h-8" />
+                </button>
+              </>
+            )}
+
+            {/* Main Image */}
+            <div className="relative max-w-full max-h-full flex items-center justify-center">
+              <img
+                src={currentModalImage}
+                alt={`Image ${currentImageIndex + 1}`}
+                className="max-h-[80vh] max-w-full rounded-lg md:rounded-2xl shadow-2xl object-contain animate-fadeIn"
+                style={{ animationDuration: "0.2s" }}
+              />
+            </div>
+
+            {/* Bottom Navigation Dots */}
+            {currentFolder.images.length > 1 && currentFolder.images.length <= 20 && (
+              <div className="absolute bottom-4 md:bottom-8 left-1/2 -translate-x-1/2 flex gap-2 bg-black/40 px-4 py-2 rounded-full backdrop-blur-sm">
+                {currentFolder.images.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setCurrentImageIndex(idx)}
+                    className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                      idx === currentImageIndex
+                        ? "bg-white w-8"
+                        : "bg-white/40 hover:bg-white/60"
+                    }`}
+                    aria-label={`Go to image ${idx + 1}`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
