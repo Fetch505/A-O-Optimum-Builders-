@@ -12,6 +12,8 @@ import Fence from "@/assets/services/icons/Fence.png";
 import Paint from "@/assets/services/icons/Paint.png";
 import Door from "@/assets/services/icons/Door.png";
 import Concrete from "@/assets/services/icons/Concrete.png";
+import Cupboard from "@/assets/services/icons/Cupboard.png";
+import Bath from "@/assets/services/icons/Bath.png";
 
 const categories = [
   { id: "kitchen", name: "Kitchen", icon: Kitchen },
@@ -19,20 +21,12 @@ const categories = [
   { id: "partitions", name: "Partitions", icon: Partition },
   { id: "flooring", name: "Flooring", icon: Floor },
   { id: "deckpro", name: "DeckPro", icon: Deskpro },
-  { id: "restroom", name: "Restroom Transformation", icon: Deskpro },
+  { id: "restroom", name: "Restroom", icon: Bath },
   { id: "fence", name: "Fence", icon: Fence },
   { id: "paints", name: "Paints", icon: Paint },
   { id: "doors", name: "Doors", icon: Door },
   { id: "concrete", name: "Concrete", icon: Concrete },
-  { id: "kitchen2", name: "Kitchen", icon: Kitchen },
-  { id: "partitions2", name: "Partitions", icon: Partition },
-  { id: "flooring2", name: "Flooring", icon: Floor },
-  { id: "deckpro2", name: "DeckPro", icon: Deskpro },
-  { id: "restroom2", name: "Restroom Transformation", icon: Deskpro },
-  { id: "fence2", name: "Fence", icon: Fence },
-  { id: "paints2", name: "Paints", icon: Paint },
-  { id: "doors2", name: "Doors", icon: Door },
-  { id: "concrete2", name: "Concrete", icon: Concrete },
+  { id: "cupboard", name: "Cupboard", icon: Cupboard },
 ];
 
 const CategorySection = () => {
@@ -105,7 +99,7 @@ const CategorySection = () => {
                 }`}
               >
                 <div
-                  className={`w-12 h-12 flex items-center justify-center rounded-lg transition duration-200 ${
+                  className={`w-12 h-12 flex items-center opacity-60 justify-center rounded-lg transition duration-200 ${
                     isActive
                       ? "bg-amber-100 scale-110"
                       : "group-hover:bg-gray-100 group-hover:scale-110"
@@ -114,7 +108,7 @@ const CategorySection = () => {
                   <img
                     src={cat.icon.src}
                     alt={cat.name}
-                    className={`w-6 h-6 transition ${
+                    className={`w-6 h-6 transition  ${
                       isActive ? "scale-110" : "group-hover:scale-110"
                     }`}
                   />

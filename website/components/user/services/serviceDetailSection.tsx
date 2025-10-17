@@ -60,6 +60,11 @@ const ServiceDetailSection: React.FC = () => {
       description:
         "Smart partitioning and space extensions that optimize layouts, improve functionality, and enhance property value.",
     },
+    {
+      title: "cupboard",
+      description:
+        "Elegant and functional cupboard designs that maximize storage, enhance aesthetics, and bring organized comfort to your interiors.",
+    }
   ];
 
   // 🔹 Find service by title
