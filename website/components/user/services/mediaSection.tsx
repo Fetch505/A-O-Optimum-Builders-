@@ -9,15 +9,23 @@ interface FolderData {
   thumbnail: string;
 }
 
+const IMAGE_EXTENSIONS = ['.webp'];
+const MAX_FOLDERS = 10;
+const MAX_IMAGES_PER_FOLDER = 50;
+const MAX_FLAT_IMAGES = 50;
+const IMAGE_CHECK_TIMEOUT = 1500;
+const INITIAL_IMAGES_PER_FOLDER = 5;
+
 const MediaSection: React.FC = () => {
   const pathname = usePathname();
   const service = pathname.split("/").pop()?.toLowerCase();
-  const capitalized = service
-    ? service.charAt(0).toUpperCase() + service.slice(1)
-    : "";
+  const capitalized = useMemo(() => 
+    service ? service.charAt(0).toUpperCase() + service.slice(1) : "",
+    [service]
+  );
 
-  const imageBase = `/categories/image/${capitalized}`;
-  const heroimageBase = `/categories/Hero/${capitalized}`;
+  const imageBase = useMemo(() => `/categories/image/${capitalized}`, [capitalized]);
+  const heroImageBase = useMemo(() => `/categories/Hero/${capitalized}`, [capitalized]);
   
   // State management
   const [folders, setFolders] = useState<FolderData[]>([]);
@@ -31,15 +39,10 @@ const MediaSection: React.FC = () => {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   
-  // Preloading state
+  // Refs
   const preloadedRefs = useRef<Set<string>>(new Set());
-  
-  const MAX_FOLDERS = 10;
-  const MAX_IMAGES_PER_FOLDER = 50;
-  const MAX_FLAT_IMAGES = 50;
-  
-  // Supported image extensions (prioritize WebP for better compression)
-  const IMAGE_EXTENSIONS = ['.webp', '.jpg', '.jpeg', '.png'];
+  const imageCache = useRef<Map<string, boolean>>(new Map());
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const videos = useMemo(
     () => [
@@ -54,21 +57,29 @@ const MediaSection: React.FC = () => {
     [videos, service]
   );
 
-  // Optimized image check with aggressive timeout for slow connections
-  const checkImageExists = useCallback((url: string, timeout = 2000): Promise<boolean> => {
+  // Optimized image existence check with caching
+  const checkImageExists = useCallback((url: string, timeout = IMAGE_CHECK_TIMEOUT): Promise<boolean> => {
+    // Check cache first
+    if (imageCache.current.has(url)) {
+      return Promise.resolve(imageCache.current.get(url)!);
+    }
+
     return new Promise((resolve) => {
       const img = new Image();
       const timer = setTimeout(() => {
         img.src = '';
+        imageCache.current.set(url, false);
         resolve(false);
       }, timeout);
       
       img.onload = () => {
         clearTimeout(timer);
+        imageCache.current.set(url, true);
         resolve(true);
       };
       img.onerror = () => {
         clearTimeout(timer);
+        imageCache.current.set(url, false);
         resolve(false);
       };
       img.src = url;
@@ -80,12 +91,10 @@ const MediaSection: React.FC = () => {
     const folder = folders.find(f => f.id === folderId);
     if (!folder) return;
 
-    // Preload next 2 and previous 2 images
     const indicesToPreload = [
       (currentIndex + 1) % folder.images.length,
       (currentIndex + 2) % folder.images.length,
       (currentIndex - 1 + folder.images.length) % folder.images.length,
-      (currentIndex - 2 + folder.images.length) % folder.images.length,
     ];
 
     indicesToPreload.forEach(idx => {
@@ -109,83 +118,80 @@ const MediaSection: React.FC = () => {
     }
 
     for (const ext of IMAGE_EXTENSIONS) {
-      const heroUrl = `${heroimageBase}${ext}`;
-      if (await checkImageExists(heroUrl, 1500)) {
+      const heroUrl = `${heroImageBase}${ext}`;
+      if (await checkImageExists(heroUrl, IMAGE_CHECK_TIMEOUT)) {
         setHeroImage(heroUrl);
         return;
       }
     }
-  }, [heroimageBase, checkImageExists, matchedVideo]);
+  }, [heroImageBase, checkImageExists, matchedVideo]);
 
-  // Optimized structure detection with parallel requests limited to 3 at a time
+  // Find first valid image for a folder
+  const findFirstImage = useCallback(async (folderId: number): Promise<string | null> => {
+    for (const ext of IMAGE_EXTENSIONS) {
+      const testUrl = `${imageBase}/${folderId}/1${ext}`;
+      if (await checkImageExists(testUrl, IMAGE_CHECK_TIMEOUT)) {
+        return `1${ext}`;
+      }
+    }
+    return null;
+  }, [imageBase, checkImageExists]);
+
+  // Load images for a specific folder
+  const loadFolderImages = useCallback(async (
+    folderId: number, 
+    maxImages: number = INITIAL_IMAGES_PER_FOLDER
+  ): Promise<string[]> => {
+    const images: string[] = [];
+    
+    for (let imgId = 1; imgId <= maxImages; imgId++) {
+      let found = false;
+      for (const ext of IMAGE_EXTENSIONS) {
+        const imgUrl = `${imageBase}/${folderId}/${imgId}${ext}`;
+        if (await checkImageExists(imgUrl, IMAGE_CHECK_TIMEOUT)) {
+          images.push(`${imgId}${ext}`);
+          found = true;
+          break;
+        }
+      }
+      if (!found && imgId > 1) break;
+    }
+    
+    return images;
+  }, [imageBase, checkImageExists]);
+
+  // Detect structure with optimized checks
   const detectStructure = useCallback(async () => {
-    console.log('Starting detection for:', capitalized);
+    // Cancel any previous detection
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     setIsLoading(true);
     
-    // Load hero image first (non-blocking)
+    // Load hero image (non-blocking)
     loadHeroImage();
     
-    // Check for nested structure with limited concurrency
-    const BATCH_SIZE = 3;
-    const testFolders = async (start: number, end: number) => {
-      const checks = [];
-      for (let folderId = start; folderId <= end; folderId++) {
-        const testUrl = `${imageBase}/${folderId}/1${IMAGE_EXTENSIONS[0]}`;
-        checks.push(
-          checkImageExists(testUrl, 1500).then(exists => ({ folderId, exists }))
-        );
-      }
-      return Promise.all(checks);
-    };
-
-    // Check first 3 folders quickly
-    const firstBatch = await testFolders(1, Math.min(3, MAX_FOLDERS));
-    const validFolders = firstBatch.filter(r => r.exists).map(r => r.folderId);
+    // Check for nested structure
+    const firstImage = await findFirstImage(1);
     
-    if (validFolders.length > 0) {
-      // Found nested structure - load folders efficiently
+    if (firstImage) {
+      // Nested structure found
       const detectedFolders: FolderData[] = [];
       
       for (let folderId = 1; folderId <= MAX_FOLDERS; folderId++) {
-        // Quick check for first image
-        let firstImageFound = false;
-        let firstImageName = '';
+        const folderImages = await loadFolderImages(folderId, INITIAL_IMAGES_PER_FOLDER);
         
-        for (const ext of IMAGE_EXTENSIONS) {
-          const testUrl = `${imageBase}/${folderId}/1${ext}`;
-          if (await checkImageExists(testUrl, 1500)) {
-            firstImageFound = true;
-            firstImageName = `1${ext}`;
-            break;
-          }
-        }
-        
-        if (!firstImageFound) {
-          if (folderId === 1) break;
+        if (folderImages.length === 0) {
           if (detectedFolders.length > 0) break;
           continue;
         }
         
-        // For slow connections, only check first 5 images per folder initially
-        const folderImages: string[] = [firstImageName];
-        
-        // Check images 2-5 in smaller batches
-        for (let imgId = 2; imgId <= Math.min(5, MAX_IMAGES_PER_FOLDER); imgId++) {
-          for (const ext of IMAGE_EXTENSIONS) {
-            if (await checkImageExists(`${imageBase}/${folderId}/${imgId}${ext}`, 1500)) {
-              folderImages.push(`${imgId}${ext}`);
-              break;
-            }
-          }
-        }
-        
-        // Lazy load remaining images (they'll be discovered when modal opens)
-        console.log(`Folder ${folderId}: ${folderImages.length} images found (initial scan)`);
-        
         detectedFolders.push({
           id: String(folderId),
           images: folderImages,
-          thumbnail: `${folderId}/${firstImageName}`
+          thumbnail: `${folderId}/${folderImages[0]}`
         });
       }
       
@@ -197,27 +203,24 @@ const MediaSection: React.FC = () => {
       }
     }
 
-    // Fallback to flat structure - check only first 5 images initially
-    console.log('Checking for flat structure...');
+    // Fallback to flat structure
     const flatImgs: string[] = [];
     
     for (let i = 1; i <= Math.min(5, MAX_FLAT_IMAGES); i++) {
       for (const ext of IMAGE_EXTENSIONS) {
-        if (await checkImageExists(`${imageBase}/${i}${ext}`, 1500)) {
+        if (await checkImageExists(`${imageBase}/${i}${ext}`, IMAGE_CHECK_TIMEOUT)) {
           flatImgs.push(`${i}${ext}`);
           break;
         }
       }
     }
     
-    console.log('Flat images found:', flatImgs.length);
-    
     setIsNested(false);
     setFlatImages(flatImgs);
     setIsLoading(false);
-  }, [imageBase, checkImageExists, capitalized, loadHeroImage]);
+  }, [imageBase, loadHeroImage, findFirstImage, loadFolderImages, checkImageExists]);
 
-  // Lazy load more images in a folder when modal opens
+  // Lazy load more images when modal opens
   const loadMoreFolderImages = useCallback(async (folderId: string) => {
     const folder = folders.find(f => f.id === folderId);
     if (!folder || folder.images.length >= MAX_IMAGES_PER_FOLDER) return;
@@ -228,7 +231,7 @@ const MediaSection: React.FC = () => {
     for (let imgId = startFrom; imgId <= MAX_IMAGES_PER_FOLDER; imgId++) {
       let found = false;
       for (const ext of IMAGE_EXTENSIONS) {
-        if (await checkImageExists(`${imageBase}/${folderId}/${imgId}${ext}`, 1500)) {
+        if (await checkImageExists(`${imageBase}/${folderId}/${imgId}${ext}`, IMAGE_CHECK_TIMEOUT)) {
           newImages.push(`${imgId}${ext}`);
           found = true;
           break;
@@ -248,26 +251,29 @@ const MediaSection: React.FC = () => {
 
   useEffect(() => {
     detectStructure();
+    
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [detectStructure]);
 
   // Modal controls
-  const openModal = (folderId: string, startIndex: number = 0) => {
+  const openModal = useCallback((folderId: string, startIndex: number = 0) => {
     setSelectedFolder(folderId);
     setCurrentImageIndex(startIndex);
     document.body.style.overflow = "hidden";
     
-    // Start lazy loading more images in background
     loadMoreFolderImages(folderId);
-    
-    // Preload adjacent images
     preloadAdjacentImages(folderId, startIndex);
-  };
+  }, [loadMoreFolderImages, preloadAdjacentImages]);
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setSelectedFolder(null);
     setCurrentImageIndex(0);
     document.body.style.overflow = "";
-  };
+  }, []);
 
   const handleNext = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -295,31 +301,34 @@ const MediaSection: React.FC = () => {
 
   // Keyboard navigation
   useEffect(() => {
+    if (!selectedFolder) return;
+
     const handleKeyPress = (e: KeyboardEvent) => {
-      if (!selectedFolder) return;
-      
-      if (e.key === "ArrowRight") {
-        const folder = folders.find(f => f.id === selectedFolder);
-        if (folder) {
+      const folder = folders.find(f => f.id === selectedFolder);
+      if (!folder) return;
+
+      switch (e.key) {
+        case "ArrowRight": {
           const newIndex = (currentImageIndex + 1) % folder.images.length;
           setCurrentImageIndex(newIndex);
           preloadAdjacentImages(selectedFolder, newIndex);
+          break;
         }
-      } else if (e.key === "ArrowLeft") {
-        const folder = folders.find(f => f.id === selectedFolder);
-        if (folder) {
+        case "ArrowLeft": {
           const newIndex = (currentImageIndex - 1 + folder.images.length) % folder.images.length;
           setCurrentImageIndex(newIndex);
           preloadAdjacentImages(selectedFolder, newIndex);
+          break;
         }
-      } else if (e.key === "Escape") {
-        closeModal();
+        case "Escape":
+          closeModal();
+          break;
       }
     };
 
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [selectedFolder, folders, currentImageIndex, preloadAdjacentImages]);
+  }, [selectedFolder, folders, currentImageIndex, preloadAdjacentImages, closeModal]);
 
   // Get current modal image
   const currentModalImage = useMemo(() => {
@@ -339,7 +348,7 @@ const MediaSection: React.FC = () => {
     setLoadedImages(prev => new Set(prev).add(url));
   }, []);
 
-  // Render loading state
+  // Loading state
   if (isLoading) {
     return (
       <section className="w-full outerPadding flex flex-col justify-between">
@@ -347,7 +356,6 @@ const MediaSection: React.FC = () => {
           <div className="flex flex-col items-center gap-4">
             <Loader2 className="w-12 h-12 animate-spin text-gray-600" />
             <p className="text-gray-600 font-medium">Loading media...</p>
-            <p className="text-gray-500 text-sm">Optimized for slow connections</p>
           </div>
         </main>
       </section>
@@ -371,7 +379,6 @@ const MediaSection: React.FC = () => {
                   playsInline
                   preload="metadata"
                   className="w-full aspect-video object-cover"
-                  onError={(e) => console.error('Failed to load video:', heroImage)}
                 >
                   <source src={heroImage} type="video/webm" />
                 </video>
@@ -381,11 +388,10 @@ const MediaSection: React.FC = () => {
               <>
                 <img
                   src={heroImage}
-                  alt={`${capitalized} hero`}
+                  alt={`${capitalized} showcase`}
                   className="w-full aspect-video object-cover"
                   loading="eager"
                   decoding="async"
-                  onError={(e) => console.error('Failed to load hero image:', heroImage)}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
               </>
@@ -433,7 +439,6 @@ const MediaSection: React.FC = () => {
                           isLoaded ? 'opacity-100 group-hover:scale-110' : 'opacity-0'
                         }`}
                         onLoad={() => handleImageLoad(thumbUrl)}
-                        onError={(e) => console.error('Failed to load thumbnail:', thumbUrl)}
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0 group-hover:from-black/70 transition-all duration-300" />
                       <div className="absolute bottom-4 left-4 text-white">
@@ -457,7 +462,7 @@ const MediaSection: React.FC = () => {
                   return (
                     <div
                       key={idx}
-                      className="w-full aspect-[4/3] rounded-xl overflow-hidden shadow-lg transform transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 bg-gray-200"
+                      className="relative w-full aspect-[4/3] rounded-xl overflow-hidden shadow-lg transform transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 bg-gray-200"
                     >
                       {!isLoaded && (
                         <div className="absolute inset-0 flex items-center justify-center">
@@ -486,7 +491,6 @@ const MediaSection: React.FC = () => {
         {!hasCollections && !heroImage && (
           <div className="flex flex-col items-center gap-4 text-center py-12">
             <p className="text-gray-600 font-medium text-xl">No media found</p>
-            <p className="text-gray-500 text-sm">Path: {imageBase}</p>
           </div>
         )}
       </main>
@@ -512,7 +516,7 @@ const MediaSection: React.FC = () => {
               <button
                 className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all duration-200 hover:rotate-90"
                 onClick={closeModal}
-                aria-label="Close"
+                aria-label="Close modal"
               >
                 <X className="w-6 h-6 md:w-8 md:h-8" />
               </button>
@@ -524,14 +528,14 @@ const MediaSection: React.FC = () => {
                 <button
                   className="absolute left-2 md:left-8 top-1/2 -translate-y-1/2 p-3 md:p-4 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all duration-200 hover:scale-110 z-10"
                   onClick={handlePrev}
-                  aria-label="Previous"
+                  aria-label="Previous image"
                 >
                   <ChevronLeft className="w-6 h-6 md:w-8 md:h-8" />
                 </button>
                 <button
                   className="absolute right-2 md:right-8 top-1/2 -translate-y-1/2 p-3 md:p-4 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all duration-200 hover:scale-110 z-10"
                   onClick={handleNext}
-                  aria-label="Next"
+                  aria-label="Next image"
                 >
                   <ChevronRight className="w-6 h-6 md:w-8 md:h-8" />
                 </button>
