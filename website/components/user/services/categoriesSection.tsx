@@ -1,6 +1,6 @@
 "use client";
-import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import React, { useRef, useState, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { ChevronRight, ChevronDown, ChevronUp, ChevronLeft } from "lucide-react";
 
 import Kitchen from "@/assets/services/icons/Kitchen.png";
@@ -31,81 +31,43 @@ const categories = [
 
 const CategorySection = () => {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const pathname = usePathname(); // ✅ get current path from URL
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const [usa, setUsa] = useState(() => searchParams.get("usa") === "true");
+  const [usa, setUsa] = useState(true);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  // Extract current category from URL
-  const currentCategory = useMemo(() => {
+  // ✅ Extract current category from URL
+  useEffect(() => {
     const lastSegment = pathname.split("/").pop();
-    return lastSegment && categories.some(c => c.id === lastSegment) ? lastSegment : null;
+    if (lastSegment) setSelectedCategory(lastSegment);
   }, [pathname]);
 
-  useEffect(() => {
-    setSelectedCategory(currentCategory);
-  }, [currentCategory]);
-
-  const handleCategoryClick = useCallback((id: string) => {
+  const handleCategoryClick = (id: string) => {
     setSelectedCategory(id);
     router.push(`/services/${id}?usa=${usa}`);
     setOpenDropdown(false);
-  }, [router, usa]);
+  };
 
-  const handleUsaToggle = useCallback((checked: boolean) => {
-    setUsa(checked);
-    if (selectedCategory) {
-      router.push(`/services/${selectedCategory}?usa=${checked}`);
-    }
-  }, [router, selectedCategory]);
+  const scrollRight = () => scrollRef.current?.scrollBy({ left: 200, behavior: "smooth" });
+  const scrollLeft = () => scrollRef.current?.scrollBy({ left: -200, behavior: "smooth" });
 
-  const scrollRight = useCallback(() => {
-    scrollRef.current?.scrollBy({ left: 200, behavior: "smooth" });
-  }, []);
-
-  const scrollLeft = useCallback(() => {
-    scrollRef.current?.scrollBy({ left: -200, behavior: "smooth" });
-  }, []);
-
-  const checkScroll = useCallback(() => {
+  const checkScroll = () => {
     if (scrollRef.current) {
       const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
       setShowLeftArrow(scrollLeft > 0);
       setShowRightArrow(scrollLeft + clientWidth < scrollWidth - 1);
     }
-  }, []);
+  };
 
   useEffect(() => {
     checkScroll();
-    const handleResize = () => checkScroll();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [checkScroll]);
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    if (!openDropdown) return;
-
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('[data-dropdown]')) {
-        setOpenDropdown(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [openDropdown]);
-
-  const selectedCategoryName = useMemo(
-    () => categories.find((c) => c.id === selectedCategory)?.name || "Browse Categories",
-    [selectedCategory]
-  );
+    window.addEventListener("resize", checkScroll);
+    return () => window.removeEventListener("resize", checkScroll);
+  }, []);
 
   return (
     <div className="w-full flex flex-col-reverse md:flex-row md:items-center md:justify-between gap-4 px-6">
@@ -113,8 +75,7 @@ const CategorySection = () => {
       {showLeftArrow && (
         <button
           onClick={scrollLeft}
-          className="p-2 border rounded-full border-gray-300 bg-white shadow hover:bg-gray-100 transition-colors hidden md:block"
-          aria-label="Scroll left"
+          className="p-2 border rounded-full border-gray-300 bg-white shadow hover:bg-gray-100 hidden md:block"
         >
           <ChevronLeft size={20} />
         </button>
@@ -125,7 +86,7 @@ const CategorySection = () => {
         <div
           ref={scrollRef}
           onScroll={checkScroll}
-          className="flex gap-6 overflow-x-auto scrollbar-hide scroll-smooth flex-1 px-8 select-none"
+          className="flex gap-6 overflow-x-auto scrollbar-hide scroll-smooth flex-1 px-8 select-none cursor-grab"
         >
           {categories.map((cat) => {
             const isActive = selectedCategory === cat.id;
@@ -136,8 +97,6 @@ const CategorySection = () => {
                 className={`flex flex-col items-center gap-1 transition shrink-0 group ${
                   isActive ? "text-amber-500" : "text-gray-700"
                 }`}
-                aria-label={`Select ${cat.name} category`}
-                aria-current={isActive ? "page" : undefined}
               >
                 <div
                   className={`w-12 h-12 flex items-center opacity-60 justify-center rounded-lg transition duration-200 ${
@@ -148,8 +107,8 @@ const CategorySection = () => {
                 >
                   <img
                     src={cat.icon.src}
-                    alt=""
-                    className={`w-6 h-6 transition ${
+                    alt={cat.name}
+                    className={`w-6 h-6 transition  ${
                       isActive ? "scale-110" : "group-hover:scale-110"
                     }`}
                   />
@@ -170,14 +129,16 @@ const CategorySection = () => {
       </div>
 
       {/* Mobile Dropdown */}
-      <div className="block md:hidden w-full" data-dropdown>
+      <div className="block md:hidden w-full">
         <button
           onClick={() => setOpenDropdown(!openDropdown)}
-          className="w-full flex items-center justify-between px-4 py-2 border rounded-lg bg-white shadow text-gray-700 hover:bg-gray-50 transition-colors"
-          aria-expanded={openDropdown}
-          aria-label="Browse categories"
+          className="w-full flex items-center justify-between px-4 py-2 border rounded-lg bg-white shadow text-gray-700"
         >
-          <span>{selectedCategoryName}</span>
+          <span>
+            {selectedCategory
+              ? categories.find((c) => c.id === selectedCategory)?.name || "Browse Categories"
+              : "Browse Categories"}
+          </span>
           {openDropdown ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
 
@@ -189,19 +150,16 @@ const CategorySection = () => {
                 <button
                   key={cat.id}
                   onClick={() => handleCategoryClick(cat.id)}
-                  className={`flex flex-col items-center gap-1 transition p-2 rounded-lg ${
-                    isActive 
-                      ? "text-amber-500 font-semibold bg-amber-50" 
-                      : "text-gray-700 hover:text-amber-500 hover:bg-gray-50"
+                  className={`flex flex-col items-center gap-1 transition ${
+                    isActive ? "text-amber-500 font-semibold" : "text-gray-700 hover:text-amber-500"
                   }`}
-                  aria-current={isActive ? "page" : undefined}
                 >
                   <div
                     className={`w-10 h-10 flex items-center justify-center rounded-lg ${
                       isActive ? "bg-amber-100" : ""
                     }`}
                   >
-                    <img src={cat.icon.src} alt="" className="w-6 h-6" />
+                    <img src={cat.icon.src} alt={cat.name} className="w-6 h-6" />
                   </div>
                   <span
                     className={`text-xs ${
@@ -223,23 +181,21 @@ const CategorySection = () => {
           {showRightArrow && (
             <button
               onClick={scrollRight}
-              className="p-2 border rounded-full border-gray-300 bg-white shadow hover:bg-gray-100 transition-colors hidden md:block"
-              aria-label="Scroll right"
+              className="p-2 border rounded-full border-gray-300 bg-white shadow hover:bg-gray-100 hidden md:block"
             >
               <ChevronRight size={20} />
             </button>
           )}
 
           {/* USA Toggle */}
-          <div className="flex items-center gap-2 border px-3 py-2 rounded-lg justify-between bg-white shadow-sm">
+          <div className="flex items-center gap-2 border px-3 py-2 rounded-lg justify-between">
             <span className="text-sm whitespace-nowrap">Explore in USA</span>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
                 checked={usa}
-                onChange={(e) => handleUsaToggle(e.target.checked)}
+                onChange={(e) => setUsa(e.target.checked)}
                 className="sr-only peer"
-                aria-label="Toggle USA mode"
               />
               <div className="w-10 h-5 bg-gray-300 rounded-full peer-checked:bg-amber-500 transition-colors"></div>
               <span className="absolute left-1 top-0.5 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out peer-checked:translate-x-5" />
