@@ -1,147 +1,253 @@
 "use client";
-import React, { useRef, useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { ChevronRight, Filter, X } from "lucide-react";
+import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { ChevronRight, ChevronDown, ChevronUp, ChevronLeft } from "lucide-react";
+
+import Kitchen from "@/assets/services/icons/Kitchen.png";
+import Countertop from "@/assets/services/icons/Countertop.png";
+import Partition from "@/assets/services/icons/Partition.png";
+import Floor from "@/assets/services/icons/Flooring.png";
+import Deskpro from "@/assets/services/icons/Deskpro.png";
+import Fence from "@/assets/services/icons/Fence.png";
+import Paint from "@/assets/services/icons/Paint.png";
+import Door from "@/assets/services/icons/Door.png";
+import Concrete from "@/assets/services/icons/Concrete.png";
+import Cupboard from "@/assets/services/icons/Cupboard.png";
+import Bath from "@/assets/services/icons/Bath.png";
 
 const categories = [
-  { id: "kitchen", name: "Kitchen" },
-  { id: "countertops", name: "Countertops" },
-  { id: "partitions", name: "Partitions" },
-  { id: "flooring", name: "Flooring" },
-  { id: "deckpro", name: "DeckPro" },
-  { id: "bath", name: "Bath Transformation" },
-  { id: "fence", name: "Fence" },
-  { id: "paints", name: "Paints" },
-  { id: "doors", name: "Doors" },
-  { id: "concrete", name: "Concrete" },
+  { id: "kitchen", name: "Kitchen", icon: Kitchen },
+  { id: "countertops", name: "Countertops", icon: Countertop },
+  { id: "partitions", name: "Partitions", icon: Partition },
+  { id: "flooring", name: "Flooring", icon: Floor },
+  { id: "deckpro", name: "DeckPro", icon: Deskpro },
+  { id: "restroom", name: "Restroom", icon: Bath },
+  { id: "fence", name: "Fence", icon: Fence },
+  { id: "paints", name: "Paints", icon: Paint },
+  { id: "doors", name: "Doors", icon: Door },
+  { id: "concrete", name: "Concrete", icon: Concrete },
+  { id: "cupboard", name: "Cupboard", icon: Cupboard },
 ];
 
 const CategorySection = () => {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [usa, setUsa] = useState(false);
-  const [showArrow, setShowArrow] = useState(false);
-  const [showModal, setShowModal] = useState(false);
 
-  const handleCategoryClick = (id: string) => {
-    router.push(`/service/${id}?usa=${usa}`);
-    setShowModal(false); // close modal after selecting
-  };
+  const [usa, setUsa] = useState(() => searchParams.get("usa") === "true");
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  const scrollRight = () => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollBy({ left: 200, behavior: "smooth" });
-    }
-  };
+  // Extract current category from URL
+  const currentCategory = useMemo(() => {
+    const lastSegment = pathname.split("/").pop();
+    return lastSegment && categories.some(c => c.id === lastSegment) ? lastSegment : null;
+  }, [pathname]);
 
-  // check if categories overflow (desktop only)
   useEffect(() => {
-    const checkOverflow = () => {
-      if (scrollRef.current) {
-        setShowArrow(
-          scrollRef.current.scrollWidth > scrollRef.current.clientWidth
-        );
-      }
-    };
-    checkOverflow();
-    window.addEventListener("resize", checkOverflow);
-    return () => window.removeEventListener("resize", checkOverflow);
+    setSelectedCategory(currentCategory);
+  }, [currentCategory]);
+
+  const handleCategoryClick = useCallback((id: string) => {
+    setSelectedCategory(id);
+    router.push(`/services/${id}?usa=${usa}`);
+    setOpenDropdown(false);
+  }, [router, usa]);
+
+  const handleUsaToggle = useCallback((checked: boolean) => {
+    setUsa(checked);
+    if (selectedCategory) {
+      router.push(`/services/${selectedCategory}?usa=${checked}`);
+    }
+  }, [router, selectedCategory]);
+
+  const scrollRight = useCallback(() => {
+    scrollRef.current?.scrollBy({ left: 200, behavior: "smooth" });
   }, []);
 
+  const scrollLeft = useCallback(() => {
+    scrollRef.current?.scrollBy({ left: -200, behavior: "smooth" });
+  }, []);
+
+  const checkScroll = useCallback(() => {
+    if (scrollRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+      setShowLeftArrow(scrollLeft > 0);
+      setShowRightArrow(scrollLeft + clientWidth < scrollWidth - 1);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkScroll();
+    const handleResize = () => checkScroll();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [checkScroll]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!openDropdown) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-dropdown]')) {
+        setOpenDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [openDropdown]);
+
+  const selectedCategoryName = useMemo(
+    () => categories.find((c) => c.id === selectedCategory)?.name || "Browse Categories",
+    [selectedCategory]
+  );
+
   return (
-    <>
-      <div className="w-full flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        {/* Categories (desktop only) */}
-        <div className="hidden md:flex items-center gap-2 flex-1">
-          <div
-            ref={scrollRef}
-            className="flex gap-6 overflow-x-auto scrollbar-hide scroll-smooth flex-1"
-          >
-            {categories.map((cat) => (
+    <div className="w-full flex flex-col-reverse md:flex-row md:items-center md:justify-between gap-4 px-6">
+      {/* Left Scroll Button */}
+      {showLeftArrow && (
+        <button
+          onClick={scrollLeft}
+          className="p-2 border rounded-full border-gray-300 bg-white shadow hover:bg-gray-100 transition-colors hidden md:block"
+          aria-label="Scroll left"
+        >
+          <ChevronLeft size={20} />
+        </button>
+      )}
+
+      {/* Desktop Categories */}
+      <div className="relative hidden md:flex items-center flex-1 md:w-7/12 lg:w-9/12">
+        <div
+          ref={scrollRef}
+          onScroll={checkScroll}
+          className="flex gap-6 overflow-x-auto scrollbar-hide scroll-smooth flex-1 px-8 select-none"
+        >
+          {categories.map((cat) => {
+            const isActive = selectedCategory === cat.id;
+            return (
               <button
                 key={cat.id}
                 onClick={() => handleCategoryClick(cat.id)}
-                className="flex flex-col items-center gap-1 text-gray-700 hover:text-amber-500 transition shrink-0"
+                className={`flex flex-col items-center gap-1 transition shrink-0 group ${
+                  isActive ? "text-amber-500" : "text-gray-700"
+                }`}
+                aria-label={`Select ${cat.name} category`}
+                aria-current={isActive ? "page" : undefined}
               >
-                <div className="w-12 h-12 flex items-center justify-center border rounded-lg">
-                  📌
+                <div
+                  className={`w-12 h-12 flex items-center opacity-60 justify-center rounded-lg transition duration-200 ${
+                    isActive
+                      ? "bg-amber-100 scale-110"
+                      : "group-hover:bg-gray-100 group-hover:scale-110"
+                  }`}
+                >
+                  <img
+                    src={cat.icon.src}
+                    alt=""
+                    className={`w-6 h-6 transition ${
+                      isActive ? "scale-110" : "group-hover:scale-110"
+                    }`}
+                  />
                 </div>
-                <span className="text-xs md:text-sm">{cat.name}</span>
+                <span
+                  className={`text-xs md:text-sm transition ${
+                    isActive
+                      ? "text-amber-500 font-semibold"
+                      : "text-gray-400 group-hover:text-amber-500"
+                  }`}
+                >
+                  {cat.name}
+                </span>
               </button>
-            ))}
-          </div>
+            );
+          })}
+        </div>
+      </div>
 
-          {/* Arrow (only if overflow) */}
-          {showArrow && (
+      {/* Mobile Dropdown */}
+      <div className="block md:hidden w-full" data-dropdown>
+        <button
+          onClick={() => setOpenDropdown(!openDropdown)}
+          className="w-full flex items-center justify-between px-4 py-2 border rounded-lg bg-white shadow text-gray-700 hover:bg-gray-50 transition-colors"
+          aria-expanded={openDropdown}
+          aria-label="Browse categories"
+        >
+          <span>{selectedCategoryName}</span>
+          {openDropdown ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        </button>
+
+        {openDropdown && (
+          <div className="mt-2 border rounded-lg bg-white shadow p-2 grid grid-cols-2 gap-4 max-h-64 overflow-y-auto">
+            {categories.map((cat) => {
+              const isActive = selectedCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => handleCategoryClick(cat.id)}
+                  className={`flex flex-col items-center gap-1 transition p-2 rounded-lg ${
+                    isActive 
+                      ? "text-amber-500 font-semibold bg-amber-50" 
+                      : "text-gray-700 hover:text-amber-500 hover:bg-gray-50"
+                  }`}
+                  aria-current={isActive ? "page" : undefined}
+                >
+                  <div
+                    className={`w-10 h-10 flex items-center justify-center rounded-lg ${
+                      isActive ? "bg-amber-100" : ""
+                    }`}
+                  >
+                    <img src={cat.icon.src} alt="" className="w-6 h-6" />
+                  </div>
+                  <span
+                    className={`text-xs ${
+                      isActive ? "text-amber-500" : "text-gray-500"
+                    }`}
+                  >
+                    {cat.name}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Right Controls */}
+      <div className="flex items-center justify-center md:justify-end">
+        <div className="flex items-center gap-2">
+          {showRightArrow && (
             <button
               onClick={scrollRight}
-              className="p-2 border rounded-lg hover:bg-gray-100 shrink-0"
+              className="p-2 border rounded-full border-gray-300 bg-white shadow hover:bg-gray-100 transition-colors hidden md:block"
+              aria-label="Scroll right"
             >
               <ChevronRight size={20} />
             </button>
           )}
-        </div>
-
-        {/* Right side controls */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
-          {/* Categories button (mobile only) */}
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex md:hidden items-center gap-2 border px-3 py-2 rounded-lg hover:bg-gray-100 justify-center"
-          >
-            <Filter size={16} />
-            <span className="text-sm">Categories</span>
-          </button>
 
           {/* USA Toggle */}
-          <div className="flex items-center gap-2 border px-3 py-2 rounded-lg justify-between">
+          <div className="flex items-center gap-2 border px-3 py-2 rounded-lg justify-between bg-white shadow-sm">
             <span className="text-sm whitespace-nowrap">Explore in USA</span>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
                 checked={usa}
-                onChange={(e) => setUsa(e.target.checked)}
+                onChange={(e) => handleUsaToggle(e.target.checked)}
                 className="sr-only peer"
+                aria-label="Toggle USA mode"
               />
-              <div className="w-10 h-5 bg-gray-300 rounded-full peer peer-checked:bg-amber-500 transition"></div>
-              <span className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full peer-checked:translate-x-5 transition"></span>
+              <div className="w-10 h-5 bg-gray-300 rounded-full peer-checked:bg-amber-500 transition-colors"></div>
+              <span className="absolute left-1 top-0.5 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out peer-checked:translate-x-5" />
             </label>
           </div>
         </div>
       </div>
-
-      {/* Mobile Categories Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white w-11/12 max-w-md rounded-lg p-5 relative">
-            {/* Close button */}
-            <button
-              onClick={() => setShowModal(false)}
-              className="absolute top-3 right-3 text-gray-600 hover:text-black"
-            >
-              <X size={20} />
-            </button>
-
-            <h2 className="text-lg font-semibold mb-4">All Categories</h2>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => handleCategoryClick(cat.id)}
-                  className="flex flex-col items-center gap-2 text-gray-700 hover:text-amber-500 transition"
-                >
-                  <div className="w-14 h-14 flex items-center justify-center border rounded-lg">
-                    📌
-                  </div>
-                  <span className="text-sm text-center">{cat.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+    </div>
   );
 };
 
